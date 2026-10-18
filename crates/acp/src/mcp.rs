@@ -3,6 +3,7 @@ use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::Path};
 
 pub type McpServers = BTreeMap<String, Value>;
+const DEFAULT_REDIRECT_URI: &str = "http://127.0.0.1:8765/callback";
 static WRITE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn path() -> Result<std::path::PathBuf, String> {
@@ -74,7 +75,7 @@ fn configure_oauth(config: &mut Value) {
     let Ok(client_id) = std::env::var(format!("{prefix}_CLIENT_ID")) else { return; };
     if client_id.trim().is_empty() { return; }
     let mut oauth = json!({"client_id":client_id.trim(), "redirect_uri":
-        std::env::var(format!("{prefix}_REDIRECT_URI")).unwrap_or_else(|_| "http://127.0.0.1:8765/callback".into())});
+        std::env::var(format!("{prefix}_REDIRECT_URI")).unwrap_or_else(|_| DEFAULT_REDIRECT_URI.into())});
     if std::env::var(format!("{prefix}_CLIENT_SECRET")).is_ok_and(|value| !value.trim().is_empty()) {
         oauth["client_secret"] = json!(format!("${{{prefix}_CLIENT_SECRET}}"));
     }
@@ -162,39 +163,82 @@ fn set_auth_header(config: &mut Value, token: &str) -> Result<(), String> {
     Ok(())
 }
 
-async fn verify_github_token(url: &str, token: &str) -> Result<(), String> {
+async fn verify_token(url: &str, token: &str, service: &str) -> Result<(), String> {
     let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
-        .timeout(std::time::Duration::from_secs(30)).build().map_err(|_| "Could not prepare GitHub authorization")?;
+        .timeout(std::time::Duration::from_secs(30)).build().map_err(|_| format!("Could not prepare {service} authorization"))?;
     let response = client.post(url).bearer_auth(token).header("Accept", "application/json, text/event-stream")
         .json(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
             "protocolVersion":"2025-06-18","capabilities":{},
             "clientInfo":{"name":"codexia","version":env!("CARGO_PKG_VERSION")}
-        }})).send().await.map_err(|_| "Could not reach GitHub. Try again.")?;
+        }})).send().await.map_err(|_| format!("Could not reach {service}. Try again."))?;
     match response.status().as_u16() {
         200..=299 => Ok(()),
-        401 => Err("GitHub rejected this token. Check that it is valid and has not expired.".into()),
-        403 => Err("GitHub denied access. Check the token's permissions and organization approval.".into()),
-        _ => Err(format!("GitHub could not authorize this connector (HTTP {}).", response.status().as_u16())),
+        401 => Err(format!("{service} rejected this token. Check that it is valid and has not expired.")),
+        403 => Err(format!("{service} denied access. Check the token's permissions.")),
+        _ => Err(format!("{service} could not authorize this connector (HTTP {}).", response.status().as_u16())),
     }
 }
 
 /// GitHub does not support dynamic registration; use its supported bearer token path.
 pub async fn authorize_github_mcp(name: String, token: String) -> Result<(), String> {
+    authorize_token(name, token, "GitHub", github_url).await
+}
+
+/// Google has neither dynamic nor metadata-document registration. A pasted
+/// access token is the fallback when no OAuth client is configured.
+pub async fn authorize_google_mcp(name: String, token: String) -> Result<(), String> {
+    authorize_token(name, token, "Google", google_token_url).await
+}
+
+fn google_token_url(config: &Value) -> Result<String, String> {
+    if !google_url(config) { return Err("Google tokens can only be sent to Google's MCP servers".into()); }
+    remote_url(config).map(str::to_string)
+}
+
+async fn authorize_token(name: String, token: String, service: &str, url_of: fn(&Value) -> Result<String, String>) -> Result<(), String> {
     let token = token.trim();
     if token.is_empty() || token.chars().any(char::is_whitespace) {
-        return Err("Enter a GitHub personal access token".into());
+        return Err(format!("Enter a {service} token"));
     }
     let servers = read_mcp_servers().await?;
     let original = servers.get(&name).ok_or("Connector is no longer configured")?;
-    let url = github_url(original)?;
-    verify_github_token(&url, token).await?;
+    let url = url_of(original)?;
+    verify_token(&url, token, service).await?;
     let _guard = WRITE_LOCK.lock().await;
     let path = path()?;
     let mut root = document(&path)?;
     let config = root.get_mut("mcpServers").and_then(Value::as_object_mut)
         .and_then(|servers| servers.get_mut(&name)).ok_or("Connector is no longer configured")?;
-    if github_url(config)? != url { return Err("Connector changed during authorization. Try again.".into()); }
+    if url_of(config)? != url { return Err("Connector changed during authorization. Try again.".into()); }
     set_auth_header(config, token)?;
+    save_document(&path, &root)
+}
+
+/// Store the user's own OAuth client so `keke mcp login` can sign in to an
+/// issuer that offers no registration keke can do by itself.
+pub async fn set_mcp_oauth_client(name: String, client_id: String, client_secret: Option<String>) -> Result<(), String> {
+    let client_id = client_id.trim();
+    if client_id.is_empty() || client_id.chars().any(char::is_whitespace) {
+        return Err("Enter a client ID".into());
+    }
+    let client_secret = client_secret.map(|secret| secret.trim().to_string()).filter(|secret| !secret.is_empty());
+    if client_secret.as_ref().is_some_and(|secret| secret.chars().any(char::is_whitespace)) {
+        return Err("Client secret cannot contain spaces".into());
+    }
+    let _guard = WRITE_LOCK.lock().await;
+    let path = path()?;
+    let mut root = document(&path)?;
+    let config = root.get_mut("mcpServers").and_then(Value::as_object_mut)
+        .and_then(|servers| servers.get_mut(&name)).ok_or("Connector is no longer configured")?;
+    remote_url(config)?;
+    let mut oauth = json!({"client_id":client_id, "redirect_uri":DEFAULT_REDIRECT_URI});
+    if let Some(secret) = client_secret { oauth["client_secret"] = json!(secret); }
+    config["oauth"] = oauth;
+    if let Some(meta) = config.get_mut("_meta").and_then(Value::as_object_mut) { meta.remove("keke.dev/oauth"); }
+    // A pasted token would otherwise keep shadowing the OAuth sign-in.
+    if let Some(headers) = config.get_mut("headers").and_then(Value::as_object_mut) {
+        headers.retain(|name, _| !name.eq_ignore_ascii_case("authorization"));
+    }
     save_document(&path, &root)
 }
 
@@ -202,6 +246,8 @@ pub async fn authorize_github_mcp(name: String, token: String) -> Result<(), Str
 #[serde(rename_all = "camelCase")]
 pub struct McpAuthStatus {
     pub signed_in: Option<bool>,
+    /// The server refused a call for a missing scope; signing in again asks for it.
+    pub needs_more_access: bool,
     pub error: Option<String>,
 }
 
@@ -239,12 +285,15 @@ async fn run_cli(action: &str, name: &str, timeout: std::time::Duration) -> Resu
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-fn signed_in(output: &str) -> Result<bool, String> {
+/// `(signed in, needs more access)` from `keke mcp get`.
+fn signed_in(output: &str) -> Result<(bool, bool), String> {
     let value = output.lines().find_map(|line| line.strip_prefix("signed in: "))
         .ok_or("Keke did not report authorization status; update Keke")?;
     match value {
-        "yes" => Ok(true),
-        value if value == "no" || value.starts_with("no ") => Ok(false),
+        "yes" => Ok((true, false)),
+        // keke >= 0.1.48: "yes, but it has since asked for more access — ..."
+        value if value.starts_with("yes, ") => Ok((true, true)),
+        value if value == "no" || value.starts_with("no ") => Ok((false, false)),
         _ => Err("Keke returned an unknown authorization status".into()),
     }
 }
@@ -258,7 +307,7 @@ pub async fn read_mcp_auth_statuses() -> Result<BTreeMap<String, McpAuthStatus>,
     for (name, config) in servers {
         if remote_url(&config).is_err() { continue; }
         if has_auth_header(&config) {
-            statuses.insert(name, McpAuthStatus { signed_in: Some(true), error: None });
+            statuses.insert(name, McpAuthStatus { signed_in: Some(true), needs_more_access: false, error: None });
             continue;
         }
         jobs.spawn(async move {
@@ -270,8 +319,8 @@ pub async fn read_mcp_auth_statuses() -> Result<BTreeMap<String, McpAuthStatus>,
     while let Some(result) = jobs.join_next().await {
         let (name, result) = result.map_err(|error| error.to_string())?;
         statuses.insert(name, match result {
-            Ok(value) => McpAuthStatus { signed_in: Some(value), error: None },
-            Err(error) => McpAuthStatus { signed_in: None, error: Some(error) },
+            Ok((value, needs_more_access)) => McpAuthStatus { signed_in: Some(value), needs_more_access, error: None },
+            Err(error) => McpAuthStatus { signed_in: None, needs_more_access: false, error: Some(error) },
         });
     }
     Ok(statuses)
@@ -289,7 +338,7 @@ pub async fn login_mcp_server(name: String) -> Result<(), String> {
         return Err("Configure MCP_GITHUB_CLIENT_ID before authorizing GitHub in the browser".into());
     }
     if google_url(config) && config.get("oauth").is_none() {
-        return Err("Set GOOGLE_CLIENT_ID (and GOOGLE_CLIENT_SECRET) in the host environment before authorizing Google".into());
+        return Err("Add a Google OAuth client or access token before authorizing Google".into());
     }
     // CLI login reads the native document; ACP metadata alone is not enough.
     if let Some(oauth) = config.get("oauth") {
@@ -309,7 +358,7 @@ pub async fn login_mcp_server(name: String) -> Result<(), String> {
         return Err("Connector changed during authorization; authorize the current configuration".into());
     }
     let output = run_cli("get", &name, std::time::Duration::from_secs(15)).await?;
-    if !signed_in(&output)? { return Err("Keke did not save an authorization credential".into()); }
+    if !signed_in(&output)?.0 { return Err("Keke did not save an authorization credential".into()); }
     Ok(())
 }
 
@@ -330,6 +379,13 @@ mod tests {
         assert_eq!(stdio["env"][0]["value"], "${TEST_VALUE}");
         assert!(acp_entry("test", &json!({"command":"node","args":[1]})).is_err());
         assert!(acp_entry("test", &json!({})).is_err());
+    }
+
+    #[test]
+    fn google_tokens_only_go_to_google() {
+        assert!(google_token_url(&json!({"type":"http","url":"https://gmailmcp.googleapis.com/mcp/v1"})).is_ok());
+        assert!(google_token_url(&json!({"type":"http","url":"https://evil.example/gmailmcp.googleapis.com"})).is_err());
+        assert!(google_token_url(&json!({"type":"http","url":"http://gmailmcp.googleapis.com/mcp/v1"})).is_err());
     }
 
     #[test]
@@ -384,7 +440,7 @@ mod tests {
                 let response = format!("HTTP/1.1 {status} Test\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
                 socket.write_all(response.as_bytes()).await.unwrap();
             });
-            let result = verify_github_token(&endpoint, "fixture-token").await;
+            let result = verify_token(&endpoint, "fixture-token", "GitHub").await;
             if status == 200 { assert!(result.is_ok()); }
             else { assert!(!result.unwrap_err().contains("fixture-token")); }
             server.await.unwrap();
@@ -409,8 +465,9 @@ mod tests {
 
     #[test]
     fn authorization_status_is_not_guessed_from_configuration() {
-        assert!(signed_in("transport: http\nsigned in: yes\n").unwrap());
-        assert!(!signed_in("signed in: no — keke mcp login linear\n").unwrap());
+        assert_eq!(signed_in("transport: http\nsigned in: yes\n").unwrap(), (true, false));
+        assert_eq!(signed_in("signed in: no — keke mcp login linear\n").unwrap(), (false, false));
+        assert_eq!(signed_in("signed in: yes, but it has since asked for more access — `keke mcp login linear`\n").unwrap(), (true, true));
         assert!(signed_in("configured: yes").is_err());
         assert!(remote_url(&json!({"command":"node"})).is_err());
         assert!(remote_url(&json!({"type":"http","url":"https://example.com","disabled":true})).is_err());

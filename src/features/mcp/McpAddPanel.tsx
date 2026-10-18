@@ -9,6 +9,7 @@ import type { KekeMcpServer } from '@/services/apiAdapt/kekeMcp';
 import { addKekeMcpServer } from '@/services/apiAdapt/kekeMcp';
 import { useAgentSettingsStore, useWorkspaceStore } from '@/stores';
 import { KekeGitHubAuthDialog } from './KekeGitHubAuthDialog';
+import { KekeGoogleAuthDialog } from './KekeGoogleAuthDialog';
 import { KekeMcpAuthControl } from './KekeMcpAuthControl';
 import { needsPresetAuthorization } from './mcpAuthentication';
 import { useKekeMcpAuth } from './useKekeMcpAuth';
@@ -143,6 +144,13 @@ export function McpAddPanel({ onAdded, target }: McpAddPanelProps) {
   return (
     <div className="space-y-4">
       <KekeGitHubAuthDialog
+        auth={auth}
+        onAuthorized={() => {
+          resetForm();
+          onAdded();
+        }}
+      />
+      <KekeGoogleAuthDialog
         auth={auth}
         onAuthorized={() => {
           resetForm();

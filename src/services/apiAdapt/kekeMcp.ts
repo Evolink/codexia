@@ -55,3 +55,16 @@ export async function authorizeGitHubMcp(name: string, token: string): Promise<v
   if (isDesktopTauri()) await authorizeGitHubMcpTauri(name, token);
   else await postJson('/api/keke/mcp/authorize-github', { name, token });
 }
+
+export async function authorizeGoogleMcp(name: string, token: string): Promise<void> {
+  await postJson('/api/keke/mcp/authorize-google', { name, token });
+}
+
+/** Store the user's own OAuth client on a connector; `loginKekeMcpServer` then uses it. */
+export async function setKekeMcpOAuthClient(
+  name: string,
+  clientId: string,
+  clientSecret?: string
+): Promise<void> {
+  await postJson('/api/keke/mcp/oauth-client', { name, clientId, clientSecret });
+}

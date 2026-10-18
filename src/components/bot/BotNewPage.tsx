@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { appPresets } from '@/features/mcp/appPresets';
 import { KekeGitHubAuthDialog } from '@/features/mcp/KekeGitHubAuthDialog';
+import { KekeGoogleAuthDialog } from '@/features/mcp/KekeGoogleAuthDialog';
 import { useKekeMcpAuth } from '@/features/mcp/useKekeMcpAuth';
 import {
   addKekeMcpServer,
@@ -154,6 +155,7 @@ export function BotNewPage({ creating, onClose, onCreate }: BotNewPageProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <KekeGitHubAuthDialog auth={auth} />
+      <KekeGoogleAuthDialog auth={auth} />
       <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
         <div className="flex items-center gap-2">
           {step === 'setup' && (

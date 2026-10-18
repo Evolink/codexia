@@ -3,13 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const addKeke = vi.fn().mockResolvedValue(undefined);
 const login = vi.fn();
 const tokenAuth = vi.fn();
+const googleToken = vi.fn();
+const oauthClient = vi.fn();
 const servers = vi.fn().mockResolvedValue({});
 const statuses = vi.fn().mockResolvedValue({ linear: { signedIn: false, error: null } });
 const addUnified = vi.fn().mockResolvedValue(undefined);
-vi.mock('@/services/apiAdapt/kekeMcp', () => ({ readKekeMcpServers: () => servers(), addKekeMcpServer: (...args: unknown[]) => addKeke(...args), loginKekeMcpServer: (...args: unknown[]) => login(...args), readKekeMcpAuthStatuses: () => statuses(), authorizeGitHubMcp: (...args: unknown[]) => tokenAuth(...args) }));
+vi.mock('@/services/apiAdapt/kekeMcp', () => ({ readKekeMcpServers: () => servers(), addKekeMcpServer: (...args: unknown[]) => addKeke(...args), loginKekeMcpServer: (...args: unknown[]) => login(...args), readKekeMcpAuthStatuses: () => statuses(), authorizeGitHubMcp: (...args: unknown[]) => tokenAuth(...args), authorizeGoogleMcp: (...args: unknown[]) => googleToken(...args), setKekeMcpOAuthClient: (...args: unknown[]) => oauthClient(...args) }));
 vi.mock('@/services', () => ({ unifiedAddMcpServer: (...args: unknown[]) => addUnified(...args) }));
 import { DefaultMcpServers } from './DefaultMcpServers';
-beforeEach(() => { vi.clearAllMocks(); servers.mockResolvedValue({}); login.mockResolvedValue(undefined); tokenAuth.mockResolvedValue(undefined); statuses.mockResolvedValue({linear:{signedIn:false,error:null},github:{signedIn:false,error:null}}); });
+beforeEach(() => { vi.clearAllMocks(); servers.mockResolvedValue({}); login.mockResolvedValue(undefined); tokenAuth.mockResolvedValue(undefined); googleToken.mockResolvedValue(undefined); oauthClient.mockResolvedValue(undefined); statuses.mockResolvedValue({linear:{signedIn:false,error:null},github:{signedIn:false,error:null}}); });
 describe('featured connector targets', () => {
   it('keeps FXMacroData outside Featured and adds it from Finance & economics', async () => {
     const added = vi.fn();
@@ -96,6 +98,36 @@ describe('featured connector targets', () => {
     await waitFor(() => expect(login).toHaveBeenCalledWith('github'));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(tokenAuth).not.toHaveBeenCalled();
+  });
+  it('lets Google sign in with the user\'s own OAuth client', async () => {
+    render(<DefaultMcpServers agent="keke" servers={{gmail:{type:'http',url:'https://gmailmcp.googleapis.com/mcp/v1'}}} onServerAdded={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', {name:'Authorize gmail'}));
+    fireEvent.change(await screen.findByLabelText('Client ID'), {target:{value:' fixture.apps.googleusercontent.com '}});
+    fireEvent.change(screen.getByLabelText('Client secret'), {target:{value:'fixture-secret'}});
+    fireEvent.click(screen.getByRole('button', {name:'Sign in with Google'}));
+    await waitFor(() => expect(login).toHaveBeenCalledWith('gmail'));
+    expect(oauthClient).toHaveBeenCalledWith('gmail', 'fixture.apps.googleusercontent.com', 'fixture-secret');
+    expect(oauthClient.mock.invocationCallOrder[0]).toBeLessThan(login.mock.invocationCallOrder[0]);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+  it('lets Google authorize with a pasted access token', async () => {
+    render(<DefaultMcpServers agent="keke" servers={{gmail:{type:'http',url:'https://gmailmcp.googleapis.com/mcp/v1'}}} onServerAdded={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', {name:'Authorize gmail'}));
+    await screen.findByRole('dialog');
+    const tab = screen.getByRole('tab', {name:'Access token'});
+    fireEvent.mouseDown(tab);
+    fireEvent.click(tab);
+    fireEvent.change(await screen.findByLabelText('Access token', {selector:'input'}), {target:{value:' fixture-token '}});
+    fireEvent.click(screen.getByRole('button', {name:'Authorize'}));
+    await waitFor(() => expect(googleToken).toHaveBeenCalledWith('gmail', 'fixture-token'));
+    expect(login).not.toHaveBeenCalled();
+    expect(oauthClient).not.toHaveBeenCalled();
+  });
+  it('marks a connector that asked for more access', async () => {
+    statuses.mockResolvedValue({ linear: { signedIn: true, needsMoreAccess: true, error: null } });
+    render(<DefaultMcpServers agent="keke" servers={{linear: {}}} onServerAdded={vi.fn()} />);
+    await screen.findByText('Needs more access. Reauthorize to grant it.');
+    expect(screen.getByRole('button', { name: 'Reauthorize linear' })).toBeTruthy();
   });
   it('does not start authorization for public connectors' , async () => {
     const added = vi.fn();

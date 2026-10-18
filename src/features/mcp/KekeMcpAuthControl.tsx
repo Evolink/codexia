@@ -28,12 +28,15 @@ export function KekeMcpAuthControl({
         {pending && <Loader2 className="animate-spin" data-icon="inline-start" />}
         {pending ? 'Authorizing…' : signedIn ? 'Reauthorize' : 'Authorize'}
       </Button>
-      {pending && auth.githubName !== name && (
+      {!pending && auth.statuses[name]?.needsMoreAccess && (
+        <p className="text-xs text-muted-foreground">Needs more access. Reauthorize to grant it.</p>
+      )}
+      {pending && auth.githubName !== name && auth.googleName !== name && (
         <p className="text-xs text-muted-foreground">
           Complete authorization in your desktop browser.
         </p>
       )}
-      {auth.errors[name] && auth.githubName !== name && (
+      {auth.errors[name] && auth.githubName !== name && auth.googleName !== name && (
         <p role="alert" className="max-w-64 break-words text-xs text-destructive">
           {auth.errors[name]}
         </p>

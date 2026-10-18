@@ -35,3 +35,24 @@ export function needsPresetAuthorization(config: KekeMcpServer): boolean {
     )
   );
 }
+
+const GOOGLE_MCP_HOSTS = [
+  'gmailmcp.googleapis.com',
+  'calendarmcp.googleapis.com',
+  'drivemcp.googleapis.com',
+];
+
+export function isGoogleMcpServer(config?: KekeMcpServer): boolean {
+  if (!config?.url || (config.type !== 'http' && config.type !== 'sse')) return false;
+  try {
+    const url = new URL(config.url);
+    return (
+      url.protocol === 'https:' &&
+      GOOGLE_MCP_HOSTS.includes(url.hostname) &&
+      !url.username &&
+      !url.password
+    );
+  } catch {
+    return false;
+  }
+}
