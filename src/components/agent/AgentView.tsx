@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { useAcpEvents } from '@/components/acp/useAcpEvents';
 import { useCodexStore } from '@/components/codex/stores';
 import { useCCStore } from '@/stores/cc';
 import { useAcpStore } from '@/stores/useAcpStore';
@@ -50,6 +51,11 @@ export default function AgentView() {
     sessionId: acpSessionId,
     entries: acpEntries,
   } = useAcpStore();
+
+  // Subscribed here, not in the transcript: an ACP session with no entries
+  // renders the empty layout, and a `session/load` replay arriving while the
+  // transcript is unmounted would be dropped, leaving the pane empty.
+  useAcpEvents(acpActive ? acpConnectionId : null);
 
   // No active thread/session: show the empty state with the composer at the bottom
   // A connected ACP session with nothing said yet is still an empty chat; one

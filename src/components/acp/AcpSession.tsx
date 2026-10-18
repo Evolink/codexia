@@ -5,7 +5,6 @@ import { acpAuthenticate, acpNewSession, acpRespondPermission } from '@/services
 import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
 import { AcpTranscript } from './AcpTranscript';
-import { useAcpEvents } from './useAcpEvents';
 
 export default function AcpSession() {
   const {
@@ -21,8 +20,6 @@ export default function AcpSession() {
   } = useAcpStore();
   const cwd = useWorkspaceStore((s) => s.cwd);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  useAcpEvents(connectionId);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: entries.length is the trigger — scroll to the newest entry when one arrives
   useEffect(() => {
