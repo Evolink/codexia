@@ -179,3 +179,16 @@ export function deriveRenderItems(events: ServerNotification[]): RenderItem[] {
 
   return foldCompletedTurns(items, finishedTurns);
 }
+
+/** The user messages among top-level items, for the thread's turn navigator. */
+export function codexUserTurns(items: RenderItem[]): { id: string; text: string }[] {
+  return items.flatMap((item) => {
+    if (item.kind !== 'event' || item.event.method !== 'item/started') return [];
+    const started = item.event.params.item;
+    if (started.type !== 'userMessage') return [];
+    const text = started.content
+      .flatMap((input) => (input.type === 'text' ? [input.text] : []))
+      .join('');
+    return [{ id: `event-${item.index}`, text: text || '(image)' }];
+  });
+}

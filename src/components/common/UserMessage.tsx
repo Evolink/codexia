@@ -1,8 +1,8 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { AddToTodo, CopyButton } from '@/components/common';
 import { Markdown } from '@/components/Markdown';
 import { Button } from '@/components/ui/button';
+import { MessageToolbar } from './MessageToolbar';
 
 const MAX_COLLAPSED_HEIGHT = 128;
 
@@ -12,7 +12,6 @@ export function UserMessage({ text }: { text: string }) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: text is the trigger — the effect measures the node after it re-renders
-  // biome-ignore lint/correctness/useExhaustiveDependencies: text is the trigger — the effect measures the node after it re-renders
   useLayoutEffect(() => {
     if (contentRef.current) {
       setOverflows(contentRef.current.scrollHeight > MAX_COLLAPSED_HEIGHT);
@@ -20,13 +19,14 @@ export function UserMessage({ text }: { text: string }) {
   }, [text]);
 
   return (
-    <div className="group flex items-start justify-end gap-1">
-      <div className="relative p-2 bg-blue-50 dark:bg-blue-950 max-w-[80%] rounded-md">
+    <div className="group flex min-w-0 flex-col items-end gap-1">
+      <div className="relative min-w-0 max-w-[80%] break-words rounded-md bg-blue-50 p-2 dark:bg-blue-950">
         {overflows && (
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? 'Expand message' : 'Collapse message'}
             className="absolute top-1 right-1 z-10 h-5 w-5 text-muted-foreground"
           >
             {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
@@ -63,10 +63,7 @@ export function UserMessage({ text }: { text: string }) {
           </div>
         )}
       </div>
-      <div className="invisible group-hover:visible flex flex-col gap-0.5 shrink-0 pt-0.5">
-        <AddToTodo text={text} className="h-4 w-4 text-muted-foreground" />
-        <CopyButton text={text} className="h-4 w-4 text-muted-foreground" />
-      </div>
+      <MessageToolbar text={text} />
     </div>
   );
 }

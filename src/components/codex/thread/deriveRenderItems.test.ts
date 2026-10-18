@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerNotification } from '@/bindings';
-import { deriveRenderItems } from './deriveRenderItems';
+import { codexUserTurns, deriveRenderItems } from './deriveRenderItems';
 
 const itemEvent = (
   method: 'item/started' | 'item/completed',
@@ -82,6 +82,28 @@ describe('deriveRenderItems turn folding', () => {
     expect(items.filter((item) => item.kind === 'turn').map((item) => item.key)).toEqual([
       'turn-a',
       'turn-b',
+    ]);
+  });
+});
+
+describe('codexUserTurns', () => {
+  it('lists user messages by their row key for the turn navigator', () => {
+    const ask = (text: string, turnId: string) =>
+      itemEvent(
+        'item/started',
+        { type: 'userMessage', id: `u-${turnId}`, content: [{ type: 'text', text }] },
+        turnId
+      );
+    const items = deriveRenderItems([
+      ask('Find the bug', 'turn1'),
+      message('m1', 'Found it', 'turn1'),
+      turnCompleted('turn1'),
+      ask('Fix it', 'turn2'),
+    ]);
+
+    expect(codexUserTurns(items)).toEqual([
+      { id: 'event-0', text: 'Find the bug' },
+      { id: 'event-3', text: 'Fix it' },
     ]);
   });
 });

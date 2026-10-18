@@ -81,3 +81,12 @@ export function buildAcpTranscript(entries: AcpEntry[], running: boolean): AcpRe
     ];
   });
 }
+
+/** The user entries of a built transcript, for the thread's turn navigator. */
+export function acpUserTurns(items: AcpRenderItem[]): { id: string; text: string }[] {
+  return items.flatMap((item) =>
+    item.kind === 'entry' && item.entry.role === 'user'
+      ? [{ id: item.entry.id, text: item.entry.text }]
+      : []
+  );
+}

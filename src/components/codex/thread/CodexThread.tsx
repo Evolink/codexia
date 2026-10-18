@@ -2,8 +2,8 @@ import { Fragment, type ReactNode, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WorkSummary } from '@/components/ai-elements/WorkSummary';
 import { useCodexStore } from '@/components/codex/stores';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useScrollToBottom } from '../hooks';
+import { ThreadScroller } from '@/components/common';
+import { MessageScrollerItem } from '@/components/ui/message-scroller';
 import { EventItem } from '../items';
 import { ApprovalItem } from '../items/ApprovalItem';
 import { ElicitationItem } from '../items/ElicitationItem';
@@ -11,9 +11,8 @@ import { PermissionsItem } from '../items/PermissionsItem';
 import { RequestUserInputItem } from '../items/RequestUserInputItem';
 import { formatStepDuration } from '../items/stepItems';
 import { ThreadStepChain } from '../items/ThreadStepChain';
-import { ScrollToBottomButton } from '../widget/ScrollToBottomButton';
 import { WorkingIndicator } from '../widget/WorkingIndicator';
-import { deriveRenderItems, type RenderItem } from './deriveRenderItems';
+import { codexUserTurns, deriveRenderItems, type RenderItem } from './deriveRenderItems';
 
 interface CodexThreadProps {
   /**
@@ -36,10 +35,9 @@ export function CodexThread({ threadId }: CodexThreadProps = {}) {
   const turnTiming = activeThreadId ? turnTimingMap[activeThreadId] : undefined;
   const retryNotice = activeThreadId ? retryNoticeMap[activeThreadId] : undefined;
 
-  const { scrollAreaRootRef, bottomAnchorRef, isAtBottom, scrollToBottom } =
-    useScrollToBottom(currentThreadEvents);
-
   const renderItems = useMemo(() => deriveRenderItems(currentThreadEvents), [currentThreadEvents]);
+  const turns = useMemo(() => codexUserTurns(renderItems), [renderItems]);
+  const anchorIds = new Set(turns.map((turn) => turn.id));
 
   const seenAgentMessageDeltaItemIds = new Set<string>();
 
@@ -109,27 +107,22 @@ export function CodexThread({ threadId }: CodexThreadProps = {}) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full">
-      {/* Messages Area */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <ScrollArea ref={scrollAreaRootRef} className="h-full px-4 pb-4">
-          <div className="thread-surface max-w-3xl mx-auto space-y-2 py-4">
-            {renderedEvents.map((entry) => (
-              <Fragment key={entry.key}>{entry.content}</Fragment>
-            ))}
-            <ApprovalItem />
-            <WorkingIndicator turnTiming={turnTiming} retryNotice={retryNotice} />
-            <RequestUserInputItem currentThreadId={activeThreadId} />
-            <ElicitationItem currentThreadId={activeThreadId} />
-            <PermissionsItem currentThreadId={activeThreadId} />
-            <div ref={bottomAnchorRef} aria-hidden="true" />
-          </div>
-        </ScrollArea>
-      </div>
-
-      {/* Scroll-to-bottom button, shown when the view isn't already at the bottom */}
-      {!isAtBottom && (
-        <ScrollToBottomButton onClick={() => scrollToBottom('smooth')} bottomClassName="bottom-4" />
-      )}
+      <ThreadScroller turns={turns} className="flex-1" contentClassName="thread-surface max-w-3xl">
+        {renderedEvents.map((entry) => (
+          <MessageScrollerItem
+            key={entry.key}
+            messageId={entry.key}
+            scrollAnchor={anchorIds.has(entry.key)}
+          >
+            {entry.content}
+          </MessageScrollerItem>
+        ))}
+        <ApprovalItem />
+        <WorkingIndicator turnTiming={turnTiming} retryNotice={retryNotice} />
+        <RequestUserInputItem currentThreadId={activeThreadId} />
+        <ElicitationItem currentThreadId={activeThreadId} />
+        <PermissionsItem currentThreadId={activeThreadId} />
+      </ThreadScroller>
     </div>
   );
 }

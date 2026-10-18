@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import '@/lib/i18n';
+import { ThreadScroller } from '@/components/common';
 import type { CCMessage } from '../../types/messages';
+import { buildCCTranscript } from './buildCCTranscript';
 import { CCTranscript } from './CCTranscript';
 
 vi.mock('@/components/Markdown', () => ({
@@ -59,12 +61,9 @@ const messages: CCMessage[] = [
 describe('CCTranscript', () => {
   it('folds the finished turn and nests sub-agent steps under its row', () => {
     render(
-      <CCTranscript
-        messages={messages}
-        isLoading={false}
-        showThinking
-        renderMessage={() => null}
-      />
+      <ThreadScroller turns={[]}>
+        <CCTranscript items={buildCCTranscript(messages, false)} renderMessage={() => null} />
+      </ThreadScroller>
     );
 
     // The answer stays visible; the work is folded behind one line.

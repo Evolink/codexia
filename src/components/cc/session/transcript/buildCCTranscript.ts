@@ -225,3 +225,8 @@ export function buildCCTranscript(
     ];
   });
 }
+
+/** The user messages of a built transcript, for the thread's turn navigator. */
+export function ccUserTurns(items: CCRenderItem[]): { id: string; text: string }[] {
+  return items.flatMap((item) => (item.kind === 'user' ? [{ id: item.key, text: item.text }] : []));
+}
