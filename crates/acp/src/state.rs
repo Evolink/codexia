@@ -160,6 +160,7 @@ impl AcpState {
         connection_id: &str,
         session_id: Option<&str>,
         text: &str,
+        images: &[String],
     ) -> Result<Value, String> {
         let client = self.get(connection_id)?;
         // A bot turn keeps the computer awake until it ends, like an
@@ -169,7 +170,7 @@ impl AcpState {
             .bot_id
             .as_ref()
             .map(|_| codexia_shared::sleep::KeepAwake::hold(format!("bot-turn-{connection_id}")));
-        client.prompt(session_id, text).await
+        client.prompt(session_id, text, images).await
     }
 
     /// Unattended bot requests waiting for a person, across every running

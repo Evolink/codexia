@@ -23,6 +23,9 @@ pub(crate) struct AcpPromptParams {
     #[serde(default)]
     pub session_id: Option<String>,
     pub text: String,
+    /// Local image paths to attach to the turn.
+    #[serde(default)]
+    pub images: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -152,6 +155,7 @@ pub(crate) async fn api_acp_prompt(
             &params.connection_id,
             params.session_id.as_deref(),
             &params.text,
+            &params.images,
         )
         .await
         .map(Json)

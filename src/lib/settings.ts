@@ -9,6 +9,7 @@
 
 import { getHomeDirectory, readTextFile, writeFile } from '@/services/apiAdapt';
 import { fetchRemoteSettings } from '@/services/apiAdapt/settings';
+import { useAcpStore } from '@/stores/useAcpStore';
 import { useAgentSettingsStore } from '@/stores/useAgentSettingsStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 
@@ -24,6 +25,12 @@ type WorkspaceData = {
   cwd: string | undefined;
   projectSort: string;
   instructionType: string;
+  /** Whether an ACP agent drives the chat pane instead of `selectedAgent`. */
+  acpActive: boolean;
+  /** The last ACP agent picked. */
+  acpAgentId: string;
+  /** The ACP chat session to reopen. */
+  acpSessionId: string | null;
 };
 
 interface SettingsFile {
@@ -69,6 +76,11 @@ function applySettings(data: SettingsFile): void {
       ...(ws.selectedAgent !== undefined && { selectedAgent: ws.selectedAgent as never }),
       ...(ws.instructionType !== undefined && { instructionType: ws.instructionType }),
     });
+    useAcpStore.setState({
+      ...(ws.acpActive !== undefined && { active: ws.acpActive }),
+      ...(ws.acpAgentId !== undefined && { agentId: ws.acpAgentId }),
+      ...(ws.acpSessionId !== undefined && { resumeSessionId: ws.acpSessionId }),
+    });
   }
 }
 
@@ -107,6 +119,7 @@ export async function loadRemoteSettings(): Promise<boolean> {
 function snapshot(): SettingsFile {
   const ws = useWorkspaceStore.getState();
   const as = useAgentSettingsStore.getState();
+  const acp = useAcpStore.getState();
 
   return {
     version: SETTINGS_VERSION,
@@ -117,6 +130,9 @@ function snapshot(): SettingsFile {
       cwd: ws.cwd ?? undefined,
       projectSort: ws.projectSort,
       instructionType: as.instructionType,
+      acpActive: acp.active,
+      acpAgentId: acp.agentId,
+      acpSessionId: acp.sessionId ?? acp.resumeSessionId,
     },
   };
 }
@@ -148,6 +164,17 @@ export function initSettingsSync(): () => void {
   const unsubs = [
     useWorkspaceStore.subscribe(scheduleWrite),
     useAgentSettingsStore.subscribe(scheduleWrite),
+    // Only the choice and the open session — not every streamed chunk.
+    useAcpStore.subscribe((s, prev) => {
+      if (
+        s.active !== prev.active ||
+        s.agentId !== prev.agentId ||
+        s.sessionId !== prev.sessionId ||
+        s.resumeSessionId !== prev.resumeSessionId
+      ) {
+        scheduleWrite();
+      }
+    }),
   ];
   return () => {
     for (const fn of unsubs) fn();

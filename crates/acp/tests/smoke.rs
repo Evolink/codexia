@@ -52,6 +52,7 @@ async fn gemini_prompt_roundtrip() {
             &started.connection_id,
             started.session_id.as_deref(),
             "Reply with exactly: pong",
+            &[],
         )
         .await
         .expect("prompt");

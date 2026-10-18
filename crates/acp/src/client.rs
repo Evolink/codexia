@@ -604,8 +604,18 @@ impl AcpClient {
 
     /// Send a user turn. Resolves when the agent finishes the turn; streamed
     /// output arrives meanwhile as `session/update` events.
-    pub async fn prompt(&self, session_id: Option<&str>, text: &str) -> Result<Value, String> {
-        self.prompt_from(session_id, text, None).await
+    /// `images` are local file paths, sent inline as base64 image blocks.
+    pub async fn prompt(
+        &self,
+        session_id: Option<&str>,
+        text: &str,
+        images: &[String],
+    ) -> Result<Value, String> {
+        let mut prompt = vec![json!({ "type": "text", "text": text })];
+        for path in images {
+            prompt.push(image_block(path)?);
+        }
+        self.send_prompt(session_id, text, prompt, None).await
     }
 
     /// [`Self::prompt`] for a turn nobody typed: `trigger` (a routine, another
@@ -615,6 +625,17 @@ impl AcpClient {
         &self,
         session_id: Option<&str>,
         text: &str,
+        trigger: Option<Value>,
+    ) -> Result<Value, String> {
+        let prompt = vec![json!({ "type": "text", "text": text })];
+        self.send_prompt(session_id, text, prompt, trigger).await
+    }
+
+    async fn send_prompt(
+        &self,
+        session_id: Option<&str>,
+        text: &str,
+        prompt: Vec<Value>,
         trigger: Option<Value>,
     ) -> Result<Value, String> {
         let session_id = self.resolve_session(session_id).await?;
@@ -634,7 +655,7 @@ impl AcpClient {
         self.session_request(
             Some(&session_id),
             "session/prompt",
-            json!({ "prompt": [{ "type": "text", "text": text }] }),
+            json!({ "prompt": prompt }),
         )
         .await
     }
@@ -996,6 +1017,33 @@ fn validate_mcp_policy(policy: &ConnectionPolicy, init: &Value) -> Result<(), St
     Ok(())
 }
 
+
+/// An ACP `image` content block from a local file, or from a base64 `data:`
+/// URL (an image the web client picked or pasted, which has no server path).
+fn image_block(path: &str) -> Result<Value, String> {
+    if let Some(url) = path.strip_prefix("data:") {
+        let (mime, data) = url
+            .split_once(";base64,")
+            .filter(|(mime, _)| mime.starts_with("image/"))
+            .ok_or("Unsupported image data URL")?;
+        return Ok(json!({ "type": "image", "mimeType": mime, "data": data }));
+    }
+    let bytes = std::fs::read(path).map_err(|e| format!("Failed to read image {path}: {e}"))?;
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => "image/png",
+    };
+    let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
+    Ok(json!({ "type": "image", "mimeType": mime, "data": data }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1003,6 +1051,21 @@ mod tests {
     struct QuietSink;
     impl EventSink for QuietSink {
         fn emit(&self, _: &str, _: Value) {}
+    }
+
+    #[test]
+    fn image_block_inlines_the_file_with_its_mime_type() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shot.JPG");
+        std::fs::write(&path, b"img").unwrap();
+        let block = image_block(path.to_str().unwrap()).unwrap();
+        assert_eq!(block, json!({ "type": "image", "mimeType": "image/jpeg", "data": "aW1n" }));
+        assert!(image_block(dir.path().join("missing.png").to_str().unwrap()).is_err());
+        assert_eq!(
+            image_block("data:image/webp;base64,aW1n").unwrap(),
+            json!({ "type": "image", "mimeType": "image/webp", "data": "aW1n" })
+        );
+        assert!(image_block("data:text/plain;base64,aW1n").is_err());
     }
 
     #[test]

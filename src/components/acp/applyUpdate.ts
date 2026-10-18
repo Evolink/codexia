@@ -25,6 +25,9 @@ export function applyAcpUpdate(update: Record<string, any>, store = useAcpStore.
     case 'current_mode_update':
       store.setCurrentMode(update.currentModeId);
       break;
+    case 'available_commands_update':
+      store.setCommands(update.availableCommands ?? []);
+      break;
     case 'config_option_update':
       store.setConfigOptions(update.configOptions ?? []);
       break;

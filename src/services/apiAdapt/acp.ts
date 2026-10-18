@@ -33,7 +33,10 @@ export type AcpInitializeResult = {
   protocolVersion?: number;
   agentInfo?: { name?: string; title?: string; version?: string };
   authMethods?: AcpAuthMethod[];
-  agentCapabilities?: Record<string, unknown>;
+  agentCapabilities?: Record<string, unknown> & {
+    loadSession?: boolean;
+    promptCapabilities?: { image?: boolean };
+  };
 };
 
 /** `modes` on the `session/new` result — the older, mode-only mechanism. */
@@ -130,11 +133,18 @@ export async function acpStart(agentId: string, cwd: string, custom?: AcpAgentDe
  * One connection can host several sessions, so every session-scoped call names
  * the session it targets. `null` falls back to the connection's newest session.
  */
-export async function acpPrompt(connectionId: string, sessionId: string | null, text: string) {
+export async function acpPrompt(
+  connectionId: string,
+  sessionId: string | null,
+  text: string,
+  /** Local image paths, sent inline. Only for agents that accept images. */
+  images: string[] = []
+) {
   return await postJson<{ stopReason?: string }>('/api/acp/prompt', {
     connection_id: connectionId,
     session_id: sessionId,
     text,
+    images,
   });
 }
 

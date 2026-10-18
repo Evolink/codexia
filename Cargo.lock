@@ -1055,6 +1055,7 @@ version = "0.56.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "codexia-codex",
  "codexia-db",
