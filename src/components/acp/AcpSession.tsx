@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
+import { Streamdown } from 'streamdown';
 import { Button } from '@/components/ui/button';
 import { acpAuthenticate, acpNewSession, acpRespondPermission } from '@/services/apiAdapt/acp';
 import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
-import { AcpThought } from './AcpThought';
-import { AcpToolCall } from './AcpToolCall';
+import { AcpTranscript } from './AcpTranscript';
 import { useAcpEvents } from './useAcpEvents';
 
 export default function AcpSession() {
@@ -13,6 +13,7 @@ export default function AcpSession() {
     sessionId,
     authMethods,
     entries,
+    running,
     permission,
     setPermission,
     applySession,
@@ -23,7 +24,6 @@ export default function AcpSession() {
 
   useAcpEvents(connectionId);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: entries.length is the trigger — scroll to the newest entry when one arrives
   // biome-ignore lint/correctness/useExhaustiveDependencies: entries.length is the trigger — scroll to the newest entry when one arrives
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,25 +65,17 @@ export default function AcpSession() {
           </div>
         )}
 
-        {entries.map((entry) => {
-          if (entry.role === 'tool') {
-            return <AcpToolCall key={entry.id} entry={entry} />;
-          }
-          if (entry.role === 'thought') {
+        <AcpTranscript
+          entries={entries}
+          running={running}
+          renderEntry={(entry) => {
+            if (entry.role === 'agent') return <Streamdown>{entry.text}</Streamdown>;
+            const tone = entry.role === 'user' ? 'bg-muted' : 'text-destructive';
             return (
-              <div key={entry.id} className="px-1">
-                <AcpThought text={entry.text} />
-              </div>
+              <div className={`whitespace-pre-wrap rounded-md px-2 py-1 ${tone}`}>{entry.text}</div>
             );
-          }
-          const tone =
-            entry.role === 'user' ? 'bg-muted' : entry.role === 'error' ? 'text-destructive' : '';
-          return (
-            <div key={entry.id} className={`whitespace-pre-wrap rounded-md px-2 py-1 ${tone}`}>
-              {entry.text}
-            </div>
-          );
-        })}
+          }}
+        />
         <div ref={bottomRef} />
       </div>
 

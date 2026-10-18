@@ -3,14 +3,14 @@ import { CCMessage } from '@/components/cc/session/messages';
 import { PermissionRequestCard } from '@/components/cc/session/messages/PermissionRequestCard';
 import { ccGetSessionMessages, ccResumeSession } from '@/services/apiAdapt/cc';
 import { useCCStore } from '@/stores/cc';
+import { useCCSettingsStore } from '@/stores/settings';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { useCCPermissionListener, useCCSessionListener } from '../hooks';
 import type { PermissionRequestMessage } from '../types/messages';
 import type { PermissionDecision } from '../types/permission';
 import { fromSdkMessages } from '../utils/fromSdkMessages';
 import { CCScrollControls } from './CCScrollControls';
-import { buildMessageGroups, CCExploredMessageGroup } from './messages/group';
-import { buildInlineErrorsMap } from './messages/inlineErrors';
+import { CCTranscript } from './transcript/CCTranscript';
 
 interface CCSessionProps {
   /** When provided, renders in embedded (grid-card) mode for this specific session. */
@@ -46,6 +46,7 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
 
   // In embedded mode use per-session data; otherwise use the global active-session data.
   const messages = sessionId ? (sessionMessagesMap[sessionId] ?? []) : globalMessages;
+  const enabledThinking = useCCSettingsStore((state) => state.enabledThinking);
   const isLoading = sessionId ? (sessionLoadingMap[sessionId] ?? false) : globalIsLoading;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -122,10 +123,6 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
     return () => clearTimeout(timer);
   }, [messages, isLoading]);
 
-  const inlineErrorsMap = useMemo(() => buildInlineErrorsMap(messages), [messages]);
-
-  const messageGroups = useMemo(() => buildMessageGroups(messages), [messages]);
-
   const pendingPermissionIdx = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
@@ -162,23 +159,12 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
         >
           <div className="thread-surface flex flex-col gap-2 p-4">
             {/* Message list */}
-            {messageGroups.map((group) =>
-              group.kind === 'explored' ? (
-                <CCExploredMessageGroup
-                  key={`explored-${group.msgIndices[0]}`}
-                  msgIndices={group.msgIndices}
-                  messages={messages}
-                  inlineErrorsMap={inlineErrorsMap}
-                />
-              ) : (
-                <CCMessage
-                  key={group.msgIdx}
-                  message={messages[group.msgIdx]}
-                  index={group.msgIdx}
-                  inlineErrors={inlineErrorsMap[group.msgIdx]}
-                />
-              )
-            )}
+            <CCTranscript
+              messages={messages}
+              isLoading={isLoading}
+              showThinking={enabledThinking}
+              renderMessage={(index) => <CCMessage message={messages[index]} index={index} />}
+            />
 
             {/* Loading indicator */}
             {isLoading && (
