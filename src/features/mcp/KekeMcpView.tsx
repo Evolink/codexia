@@ -12,6 +12,7 @@ import {
 import { unifiedReadMcpConfig } from '@/services/apiAdapt/mcp';
 import { ConnectorIcon } from './ConnectorIcon';
 import { KekeGitHubAuthDialog } from './KekeGitHubAuthDialog';
+import { KekeGoogleAuthDialog } from './KekeGoogleAuthDialog';
 import { KekeMcpAuthControl } from './KekeMcpAuthControl';
 import { KekeMcpJsonEditor } from './KekeMcpJsonEditor';
 import { needsPresetAuthorization } from './mcpAuthentication';
@@ -83,6 +84,7 @@ export function KekeMcpView({ refreshKey = 0 }: { refreshKey?: number }) {
   return (
     <div className="flex flex-col gap-4 px-4">
       <KekeGitHubAuthDialog auth={auth} />
+      <KekeGoogleAuthDialog auth={auth} />
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Bot connectors</h3>
         <Button
@@ -120,9 +122,11 @@ export function KekeMcpView({ refreshKey = 0 }: { refreshKey?: number }) {
             <Badge variant="secondary">
               {config.disabled
                 ? 'Disabled'
-                : auth.statuses[name]?.signedIn
-                  ? 'Authorized'
-                  : 'Configured'}
+                : auth.statuses[name]?.needsMoreAccess
+                  ? 'Needs more access'
+                  : auth.statuses[name]?.signedIn
+                    ? 'Authorized'
+                    : 'Configured'}
             </Badge>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRemoveName(name)}>
               Remove

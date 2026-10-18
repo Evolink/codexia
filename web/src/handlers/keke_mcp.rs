@@ -32,11 +32,27 @@ pub(crate) async fn api_keke_mcp_login(Json(params): Json<KekeMcpParams>) -> Res
 }
 
 #[derive(Deserialize)]
-pub(crate) struct GitHubMcpAuthParams {
+pub(crate) struct McpTokenParams {
     name: String,
     token: String,
 }
 
-pub(crate) async fn api_keke_mcp_authorize_github(Json(params): Json<GitHubMcpAuthParams>) -> Result<Json<()>, ErrorResponse> {
+pub(crate) async fn api_keke_mcp_authorize_github(Json(params): Json<McpTokenParams>) -> Result<Json<()>, ErrorResponse> {
     mcp::authorize_github_mcp(params.name, params.token).await.map(Json).map_err(|error| ErrorResponse { error })
+}
+
+pub(crate) async fn api_keke_mcp_authorize_google(Json(params): Json<McpTokenParams>) -> Result<Json<()>, ErrorResponse> {
+    mcp::authorize_google_mcp(params.name, params.token).await.map(Json).map_err(|error| ErrorResponse { error })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpOAuthClientParams {
+    name: String,
+    client_id: String,
+    client_secret: Option<String>,
+}
+
+pub(crate) async fn api_keke_mcp_oauth_client(Json(params): Json<McpOAuthClientParams>) -> Result<Json<()>, ErrorResponse> {
+    mcp::set_mcp_oauth_client(params.name, params.client_id, params.client_secret).await.map(Json).map_err(|error| ErrorResponse { error })
 }

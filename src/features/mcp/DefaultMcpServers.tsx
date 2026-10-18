@@ -7,6 +7,7 @@ import { addKekeMcpServer, type KekeMcpServer } from '@/services/apiAdapt/kekeMc
 import { appPresets } from './appPresets';
 import { ConnectorIcon } from './ConnectorIcon';
 import { KekeGitHubAuthDialog } from './KekeGitHubAuthDialog';
+import { KekeGoogleAuthDialog } from './KekeGoogleAuthDialog';
 import { KekeMcpAuthControl } from './KekeMcpAuthControl';
 import { useKekeMcpAuth } from './useKekeMcpAuth';
 
@@ -62,6 +63,7 @@ export function DefaultMcpServers({ agent, cwd, servers, onServerAdded }: Defaul
   return (
     <div className="flex flex-col gap-4">
       <KekeGitHubAuthDialog auth={auth} />
+      <KekeGoogleAuthDialog auth={auth} />
       <div>
         <h3 className="text-lg font-semibold">Connectors</h3>
         <p className="text-sm text-muted-foreground">

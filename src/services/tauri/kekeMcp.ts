@@ -1,6 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 
-export type KekeMcpAuthStatus = { signedIn: boolean | null; error: string | null };
+export type KekeMcpAuthStatus = {
+  signedIn: boolean | null;
+  /** The server refused a call for a missing scope; signing in again requests it. */
+  needsMoreAccess?: boolean;
+  error: string | null;
+};
 
 export function readKekeMcpAuthStatusesTauri(): Promise<Record<string, KekeMcpAuthStatus>> {
   return invoke('keke_mcp_auth_statuses');
