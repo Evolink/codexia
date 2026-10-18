@@ -469,3 +469,66 @@ body:has(#usage-panel) {
 [data-sonner-toast] {
   overflow: visible !important;
 }
+
+/* Keke mascot: parts animate while the icon, or the control holding it, is hovered. */
+.keke-svg .keke-body,
+.keke-svg [class^='keke-'] {
+  transform-box: fill-box;
+}
+.keke-svg .keke-antenna-l {
+  transform-origin: 100% 100%;
+}
+.keke-svg .keke-antenna-r {
+  transform-origin: 0% 100%;
+}
+.keke-svg .keke-eye {
+  transform-origin: 50% 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .keke-svg:hover .keke-body,
+  :hover > .keke-svg .keke-body {
+    animation: keke-bounce 0.7s ease-in-out infinite;
+  }
+  .keke-svg:hover .keke-antenna-l,
+  :hover > .keke-svg .keke-antenna-l {
+    animation: keke-sway-l 0.7s ease-in-out infinite;
+  }
+  .keke-svg:hover .keke-antenna-r,
+  :hover > .keke-svg .keke-antenna-r {
+    animation: keke-sway-r 0.7s ease-in-out infinite;
+  }
+  .keke-svg:hover .keke-eye,
+  :hover > .keke-svg .keke-eye {
+    animation: keke-blink 1.4s ease-in-out infinite;
+  }
+  .keke-svg:hover .keke-pupil,
+  :hover > .keke-svg .keke-pupil {
+    animation: keke-look 1.4s ease-in-out infinite;
+  }
+}
+@keyframes keke-bounce {
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@keyframes keke-sway-l {
+  50% {
+    transform: rotate(-14deg);
+  }
+}
+@keyframes keke-sway-r {
+  50% {
+    transform: rotate(14deg);
+  }
+}
+@keyframes keke-blink {
+  45%,
+  55% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes keke-look {
+  50% {
+    transform: translateX(8px);
+  }
+}
