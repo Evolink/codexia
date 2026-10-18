@@ -80,7 +80,7 @@ fn init_bots_table(conn: &Connection) -> Result<(), String> {
 }
 
 /// Create the ACP session list and its transcript table
-fn init_acp_sessions_tables(conn: &Connection) -> Result<(), String> {
+pub(crate) fn init_acp_sessions_tables(conn: &Connection) -> Result<(), String> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS acp_sessions (
             session_id TEXT PRIMARY KEY,

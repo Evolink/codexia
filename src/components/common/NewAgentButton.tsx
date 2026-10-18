@@ -1,6 +1,7 @@
 import { SquarePen } from 'lucide-react';
 import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { detachBotConnection } from '@/components/acp/botConnection';
 import { acpFreshSession } from '@/components/acp/newSession';
 import { useNewThread } from '@/components/codex/hooks';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,9 @@ export function NewAgentButton({ showLabel = false }: Props) {
 
       if (acpActive) {
         setView('agent');
+        // A bot's process would record the new chat as the bot's; the
+        // composer connects afresh instead.
+        if (detachBotConnection()) return;
         // One agent process hosts many sessions, and `session/new` carries its
         // own cwd, so a new chat — in this project or another — is a single
         // JSON-RPC round trip. Respawning the CLI costs seconds.

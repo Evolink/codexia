@@ -1,4 +1,6 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
+import { detachBotConnection } from '@/components/acp/botConnection';
+import { useAcpEvents } from '@/components/acp/useAcpEvents';
 import { useCodexStore } from '@/components/codex/stores';
 import { useCCStore } from '@/stores/cc';
 import { useAcpStore } from '@/stores/useAcpStore';
@@ -50,6 +52,17 @@ export default function AgentView() {
     sessionId: acpSessionId,
     entries: acpEntries,
   } = useAcpStore();
+
+  // Subscribed here, not in the transcript: an ACP session with no entries
+  // renders the empty layout, and a `session/load` replay arriving while the
+  // transcript is unmounted would be dropped, leaving the pane empty.
+  useAcpEvents(acpActive ? acpConnectionId : null);
+
+  // The chat pane must not continue on a bot's process, however it got here.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-check whenever the held connection changes
+  useEffect(() => {
+    if (acpActive) detachBotConnection();
+  }, [acpActive, acpConnectionId]);
 
   // No active thread/session: show the empty state with the composer at the bottom
   // A connected ACP session with nothing said yet is still an empty chat; one

@@ -12,6 +12,7 @@ import {
 import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
 import { applyAcpUpdate } from './applyUpdate';
+import { detachBotConnection } from './botConnection';
 import { acpFreshSession } from './newSession';
 
 /**
@@ -48,6 +49,8 @@ export function useAcpSessions(directory: string) {
    */
   const open = useCallback(
     async (record: AcpSessionRecord) => {
+      // A bot's process would record this session as the bot's.
+      detachBotConnection();
       const store = useAcpStore.getState();
       setOpening(record.sessionId);
       setCwd(record.cwd);
