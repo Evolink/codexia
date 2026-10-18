@@ -8,6 +8,7 @@ import {
 import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
 import { AcpChoiceMenu } from './AcpChoiceMenu';
+import { TOOLS_CATEGORY } from './attachments';
 import { acpFreshSession } from './newSession';
 
 /** Loose match between an auth method id (e.g. "grok") and a model id/name it likely owns. */
@@ -146,7 +147,8 @@ export function AcpModelMenu({ embedded = false }: { embedded?: boolean }) {
       onSelectAuthMethod={(methodId) => signIn(methodId)}
       authenticating={authenticating}
       authNotice={authNotice}
-      configOptions={configOptions}
+      // Tool switches (web search) live in the composer's `+` menu.
+      configOptions={configOptions.filter((o) => o.category !== TOOLS_CATEGORY)}
       onConfigOptionChange={changeConfigOption}
       models={models}
       reasoningEffort={reasoningEffort}

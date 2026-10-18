@@ -1,89 +1,71 @@
-import { ArrowUp, Download, Loader2, Square } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowUp, Square } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { AgentModelPanel } from '@/components/agent/AgentModelPanel';
 import { AgentModelTrigger } from '@/components/agent/AgentModelTrigger';
+import { DictationButton } from '@/components/codex/composer/DictationButton';
+import { FileMentionPopover } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import { acpCancel, acpPrompt, acpStart } from '@/services/apiAdapt/acp';
+import { acpCancel, acpPrompt } from '@/services/apiAdapt/acp';
 import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
-import { captureBotOptions } from '@/stores/useBotOptionsStore';
+import { AcpComposerMenu } from './AcpComposerMenu';
+import { AcpConnectStatus, AcpImageStrip, AcpInstallBanner } from './AcpComposerParts';
 import { AcpSessionControls } from './AcpSessionControls';
-import { useAcpAgents } from './useAcpAgents';
+import { AcpSlashCommandPopover } from './AcpSlashCommandPopover';
+import { imagesAsDataUrls } from './attachments';
+import { useAcpConnection } from './useAcpConnection';
 
 export function AcpComposer() {
-  const {
-    agentId,
-    connectionId,
-    sessionId,
-    connecting,
-    running,
-    setConnecting,
-    setConnection,
-    applySession,
-    setRunning,
-    addEntry,
-    restartNonce,
-  } = useAcpStore();
+  const { connectionId, sessionId, connecting, running, canAttachImages, setRunning, addEntry } =
+    useAcpStore();
   const cwd = useWorkspaceStore((s) => s.cwd);
-  const agents = useAcpAgents() ?? [];
+  const { agent, connect } = useAcpConnection();
   const [text, setText] = useState('');
-  // Agent we already tried to auto-connect, so a failed start does not spin in
-  // a retry loop. Cleared on an explicit restart.
-  const attempted = useRef<string | null>(null);
-  const seenRestart = useRef(restartNonce);
+  const [images, setImages] = useState<string[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Held in state so the popovers re-render once the wrapper mounts.
+  const [wrapperEl, setWrapperEl] = useState<HTMLDivElement | null>(null);
 
-  const agent = agents.find((a) => a.id === agentId);
-  const commandLine = agent ? [agent.command, ...agent.args].join(' ') : '';
-
-  /** Start the agent and open a session. Returns the live ids, or null on failure. */
-  const connect = useCallback(async () => {
-    if (!cwd) {
-      toast({ title: 'Pick a workspace folder first', variant: 'destructive' });
-      return null;
-    }
-    attempted.current = agentId;
-    setConnecting(true);
-    try {
-      const res = await acpStart(agentId, cwd);
-      setConnection({
-        connectionId: res.connectionId,
-        sessionId: res.sessionId,
-        agentTitle: res.initialize.agentInfo?.title ?? res.initialize.agentInfo?.name ?? agentId,
-        authMethods: res.initialize.authMethods ?? [],
-        canLoadSession: res.initialize.agentCapabilities?.loadSession === true,
-      });
-      applySession(res.session);
-      // keke's own catalogue also configures bots, which are keke processes —
-      // so a bot can be set up from this session without opening its chat.
-      if (agentId === 'keke') captureBotOptions('', res.initialize, res.session);
-      if (res.sessionError) {
-        addEntry({ id: `start-${Date.now()}`, role: 'error', text: res.sessionError });
-        return null;
-      }
-      return res.sessionId ? { connectionId: res.connectionId, sessionId: res.sessionId } : null;
-    } catch (e) {
-      setConnecting(false);
-      toast({ title: 'Failed to start agent', description: String(e), variant: 'destructive' });
-      return null;
-    }
-  }, [agentId, cwd, setConnecting, setConnection, applySession, addEntry]);
-
-  // Connect as soon as an installed agent is picked, so its model / mode
-  // controls are available before the first prompt.
+  // Grow with the text, up to the wrapper's max height.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: text is the trigger — measure after the textarea re-renders with it
   useEffect(() => {
-    if (seenRestart.current !== restartNonce) {
-      seenRestart.current = restartNonce;
-      attempted.current = null;
-    }
-    if (connectionId || connecting || !cwd || !agent?.available) return;
-    if (attempted.current === agentId) return;
-    connect();
-  }, [agentId, cwd, connectionId, connecting, agent?.available, restartNonce, connect]);
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, [text]);
+
+  /** Files from the `+` menu go in as path mentions, like `@` completion. */
+  const appendFiles = (paths: string[]) => {
+    const root = cwd?.replace(/\\/g, '/').replace(/\/+$/, '');
+    const mentions = paths.map((path) => {
+      const posix = path.replace(/\\/g, '/');
+      return `\`${root && posix.startsWith(`${root}/`) ? posix.slice(root.length + 1) : posix}\``;
+    });
+    setText((prev) => `${prev}${prev && !/\s$/.test(prev) ? ' ' : ''}${mentions.join(' ')} `);
+    textareaRef.current?.focus();
+  };
+
+  /** Open the `@` file search, which works without a local file dialog. */
+  const mentionFile = () => {
+    setText((prev) => `${prev}${prev && !/\s$/.test(prev) ? ' ' : ''}@`);
+    textareaRef.current?.focus();
+  };
+
+  /** Pasted screenshots attach like picked images. */
+  const pasteImages = async (e: React.ClipboardEvent) => {
+    if (!canAttachImages) return;
+    const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'));
+    if (!files.length) return;
+    e.preventDefault();
+    const pasted = await imagesAsDataUrls(files);
+    setImages((prev) => [...prev, ...pasted]);
+  };
 
   const send = async () => {
     const trimmed = text.trim();
-    if (!trimmed || running || connecting) return;
+    if ((!trimmed && images.length === 0) || running || connecting) return;
 
     let live = connectionId && sessionId ? { connectionId, sessionId } : null;
     if (!live) {
@@ -95,11 +77,15 @@ export function AcpComposer() {
       if (!live) return;
     }
 
+    const pendingImages = images;
     setText('');
-    addEntry({ id: `u-${Date.now()}`, role: 'user', text: trimmed });
+    setImages([]);
+    const shown =
+      trimmed || `${pendingImages.length} image${pendingImages.length === 1 ? '' : 's'}`;
+    addEntry({ id: `u-${Date.now()}`, role: 'user', text: shown });
     setRunning(true);
     try {
-      await acpPrompt(live.connectionId, live.sessionId, trimmed);
+      await acpPrompt(live.connectionId, live.sessionId, trimmed, pendingImages);
     } catch (e) {
       addEntry({ id: `e-${Date.now()}`, role: 'error', text: String(e) });
     } finally {
@@ -108,76 +94,93 @@ export function AcpComposer() {
   };
 
   return (
-    <div className="rounded-xl border bg-background overflow-hidden">
-      <div className="px-3 pt-2">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          placeholder="Do anything..."
-          rows={2}
-          className="w-full min-h-[44px] resize-none bg-transparent text-base md:text-sm outline-none placeholder:text-muted-foreground"
+    <div>
+      <AcpSlashCommandPopover
+        input={text}
+        setInput={setText}
+        editorRef={textareaRef}
+        triggerElement={wrapperEl}
+      />
+      <FileMentionPopover
+        input={text}
+        setInput={setText}
+        editorRef={textareaRef}
+        triggerElement={wrapperEl}
+      />
+      <div className="rounded-xl border bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring transition-shadow overflow-hidden">
+        <AcpImageStrip
+          images={images}
+          onRemove={(path) => setImages((prev) => prev.filter((p) => p !== path))}
         />
-      </div>
 
-      {/* Uninstalled agents run through an npx download — never do that implicitly. */}
-      {agent && !agent.available && !connectionId && (
-        <div className="flex items-center gap-2 px-3 py-2 border-t bg-muted/30 text-xs">
-          <span className="min-w-0 flex-1 text-muted-foreground">
-            {agent.name} is not installed — starting it downloads{' '}
-            <span className="font-mono">{commandLine}</span>
-          </span>
-          <Button size="sm" className="h-6 gap-1" disabled={connecting} onClick={() => connect()}>
-            <Download className="h-3 w-3" />
-            Download &amp; run
-          </Button>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-2 px-1 py-1 bg-muted/20 border-t">
-        <div className="flex items-center gap-1 min-w-0">
-          <AcpSessionControls />
-          {!cwd && !connectionId && (
-            <span className="px-1 text-[10px] text-muted-foreground">
-              Choose a project above to start {agent?.name ?? 'the agent'}
-            </span>
-          )}
-          {connecting && (
-            <span className="flex items-center gap-1 px-1 text-[10px] text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Starting {agent?.name ?? 'agent'}...
-            </span>
-          )}
+        <div ref={setWrapperEl} className="max-h-64 overflow-y-auto px-3 pt-3">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onPaste={pasteImages}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder="Do anything... / @"
+            rows={1}
+            className="block w-full min-h-[44px] resize-none bg-transparent text-base md:text-sm outline-none placeholder:text-muted-foreground"
+          />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <AgentModelPanel trigger={<AgentModelTrigger />} />
-          {running ? (
-            <Button
-              onClick={() => connectionId && acpCancel(connectionId, sessionId)}
-              variant="destructive"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              title="Stop"
-            >
-              <Square className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={() => send()}
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              disabled={connecting || !text.trim()}
-              title="Send"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </Button>
-          )}
+        {agent && !agent.available && !connectionId && (
+          <AcpInstallBanner agent={agent} connecting={connecting} onInstall={() => connect()} />
+        )}
+
+        <div className="flex items-center justify-between gap-2 px-1 bg-muted/20 border-t">
+          <div className="flex items-center min-w-0">
+            <AcpComposerMenu
+              onImagesSelected={
+                canAttachImages ? (paths) => setImages((prev) => [...prev, ...paths]) : undefined
+              }
+              onFilesSelected={appendFiles}
+              onMentionFile={mentionFile}
+            />
+            <AcpSessionControls />
+            <AcpConnectStatus
+              agentName={agent?.name}
+              needsProject={!cwd && !connectionId}
+              connecting={connecting}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <AgentModelPanel trigger={<AgentModelTrigger />} />
+            <DictationButton
+              onTranscript={(spoken) => setText((prev) => (prev ? `${prev} ${spoken}` : spoken))}
+            />
+            {running ? (
+              <Button
+                onClick={() => connectionId && acpCancel(connectionId, sessionId)}
+                variant="destructive"
+                size="icon"
+                className="h-10 w-10 md:h-8 md:w-8 rounded-full"
+                aria-label="Stop"
+                title="Stop"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={() => send()}
+                size="icon"
+                className="h-10 w-10 md:h-8 md:w-8 rounded-full"
+                disabled={connecting || (!text.trim() && images.length === 0)}
+                aria-label="Send"
+                title="Send"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -41,6 +41,9 @@ export type AcpEntry =
       rawOutput?: unknown;
     };
 
+/** A slash command the agent advertised via `available_commands_update`. */
+export type AcpCommand = { name: string; description?: string };
+
 export type AcpPermissionOption = { optionId: string; name: string; kind?: string };
 
 export type AcpPermissionRequest = {
@@ -74,6 +77,10 @@ interface AcpStore {
   authMethods: AcpAuthMethod[];
   /** `agentCapabilities.loadSession`: whether stored sessions can be resumed. */
   canLoadSession: boolean;
+  /** `agentCapabilities.promptCapabilities.image`: whether prompts may carry images. */
+  canAttachImages: boolean;
+  /** Slash commands the agent accepts in the open session. */
+  commands: AcpCommand[];
   connecting: boolean;
   running: boolean;
   entries: AcpEntry[];
@@ -104,6 +111,11 @@ interface AcpStore {
    * attempted and leaving the pane disconnected.
    */
   restartNonce: number;
+  /**
+   * The chat session to reopen after a reload, restored from the settings
+   * file, so a refresh lands back in the same conversation.
+   */
+  resumeSessionId: string | null;
 
   setActive: (v: boolean) => void;
   setAgentId: (id: string) => void;
@@ -113,13 +125,16 @@ interface AcpStore {
     agentTitle: string | null;
     authMethods: AcpAuthMethod[];
     canLoadSession?: boolean;
+    canAttachImages?: boolean;
   }) => void;
   setSessionId: (id: string | null) => void;
+  setResumeSessionId: (id: string | null) => void;
   /** Apply the `session/new` result: session id plus the available controls. */
   applySession: (session: AcpSessionResult | null) => void;
   setCurrentMode: (modeId: string) => void;
   setCurrentModel: (modelId: string) => void;
   setConfigOptions: (options: AcpConfigOption[]) => void;
+  setCommands: (commands: AcpCommand[]) => void;
   setReasoningEffort: (effort: string | null) => void;
   setConfigOptionValue: (configId: string, value: string | boolean) => void;
   setAuthenticating: (methodId: string | null) => void;
@@ -164,6 +179,8 @@ const cleared = {
   agentTitle: null,
   authMethods: [],
   canLoadSession: false,
+  canAttachImages: false,
+  commands: [],
   connecting: false,
   running: false,
   entries: [],
@@ -176,6 +193,7 @@ const cleared = {
   authenticating: null,
   authNotice: null,
   selectedAuthMethod: null,
+  resumeSessionId: null,
 } satisfies Partial<AcpStore>;
 
 export const createAcpStore = () =>
@@ -187,6 +205,8 @@ export const createAcpStore = () =>
     agentTitle: null,
     authMethods: [],
     canLoadSession: false,
+    canAttachImages: false,
+    commands: [],
     connecting: false,
     running: false,
     entries: [],
@@ -200,19 +220,29 @@ export const createAcpStore = () =>
     authNotice: null,
     selectedAuthMethod: null,
     restartNonce: 0,
+    resumeSessionId: null,
 
     setActive: (active) => set({ active }),
     setAgentId: (agentId) => set({ agentId }),
-    setConnection: ({ connectionId, sessionId, agentTitle, authMethods, canLoadSession }) =>
+    setConnection: ({
+      connectionId,
+      sessionId,
+      agentTitle,
+      authMethods,
+      canLoadSession,
+      canAttachImages,
+    }) =>
       set({
         connectionId,
         sessionId,
         agentTitle,
         authMethods,
         canLoadSession: canLoadSession ?? false,
+        canAttachImages: canAttachImages ?? false,
         connecting: false,
       }),
     setSessionId: (sessionId) => set({ sessionId }),
+    setResumeSessionId: (resumeSessionId) => set({ resumeSessionId }),
 
     applySession: (session) =>
       set({
@@ -233,6 +263,7 @@ export const createAcpStore = () =>
       set((s) => (s.models ? { models: { ...s.models, currentModelId } } : {})),
 
     setConfigOptions: (configOptions) => set({ configOptions }),
+    setCommands: (commands) => set({ commands }),
 
     setReasoningEffort: (reasoningEffort) => set({ reasoningEffort }),
 
