@@ -1,14 +1,28 @@
 # Changelog
 
-> New entries are prepended here again (run `scripts/gen-changelog-entry.sh`
-> before tagging a release). Releases 0.42.0–0.50.1 live in
+> New entries are prepended here by hand before tagging a release; if one is
+> missing, the release workflow generates it from commit history. Releases 0.42.0–0.50.1 live in
 > [changelogs/](./changelogs/); versions 0.37.0 through 0.41.1 have no written
 > changelog. The release workflow reads the top `## [version]` section of this
 > file matching the tag being published.
 
-## [0.56.0] - 2026-10-16
+## [0.57.0] - 2026-10-18
 
-[Compare with v0.55.0](https://github.com/milisp/codexia/compare/v0.55.0...v0.56.0)
+### Features & Improvements
+- Bots: a redesigned creation and settings flow; a new role opens in its chat instead of the settings dialog; a signed-in account is used by default, with sign-in offered in the chat; bots run without a project.
+- Pair a phone or remote browser with the server; the web package ships as static musl builds and is now the primary runtime.
+- ACP agent dropdown with restored presets and an animated Keke icon; the ACP composer matches the Codex and Claude composers.
+- Transcripts fold finished turns and render Claude Code and ACP steps as trace lines; the thread view uses a message scroller with a user-turn rail.
+- MCP: keke 0.1.48 step-up status and Google sign-in choices.
+- Bundled keke agent v0.1.49.
+
+### Fixes & Maintenance
+- Bots land on Today without the sidebar.
+- Project chats no longer run on a bot's keke process.
+- An ACP session keeps its event subscription while a switched-to session replays.
+- Dependency bumps (`@tauri-apps/plugin-process`, `tauri-plugin-process`, `log`); Dependabot limited to monthly GitHub Actions updates.
+
+## [0.56.0] - 2026-10-16
 
 ### Features & Improvements
 - Bots: a Today view with waiting approvals, unseen runs and upcoming routines; drafts and hand-back cards; start a bot from a role template; event triggers for routines.
@@ -28,8 +42,6 @@
 - CI hardening: actions pinned to commit SHAs, read-only workflow permissions, checkout credentials not persisted, signing key limited to the build steps, Dependabot enabled, and a SECURITY.md added. Unused manual CI workflows removed.
 
 ## [0.55.0] - 2026-10-15
-
-[Compare with v0.54.2](https://github.com/milisp/codexia/compare/v0.54.2...v0.55.0)
 
 ### Features & Improvements
 - Payments, purchases, refunds, transfers, subscriptions and MCP deletions always wait for your approval, at every bot trust level (keke `require_approval`).
@@ -79,16 +91,12 @@
 
 ## [0.53.2] - 2026-10-02
 
-[Compare with v0.53.1](https://github.com/milisp/codexia/compare/v0.53.1...v0.53.2)
-
 - chore: bump codexia to 0.53.2 (`9220b196`)
 - chore: update keke to v0.1.34 (`9ab36c68`)
 - style: biome formatting (`c0363f62`)
 - refactor: per-provider model catalogues and provider probing (`9f1a5bd6`)
 
 ## [0.53.1] - 2026-10-01
-
-[Compare with v0.53.0](https://github.com/milisp/codexia/compare/v0.53.0...v0.53.1)
 
 - chore: bump codexia to 0.53.1 (`b449c21d`)
 - chore: tweak CI build flow for fork PRs (`cc77dcdd`)
@@ -98,8 +106,6 @@
 - Remove Claude usage consent flow (`d5ddf7c9`)
 
 ## [0.53.0] - 2026-09-29
-
-[Compare with v0.52.0](https://github.com/milisp/codexia/compare/v0.52.0...v0.53.0)
 
 ### 🚀 Features & Improvements
 - **Bots keep their word**: a bot's trust level is now enforced. Read-only bots really cannot write (file writes routed through Codexia are refused too), and Autonomous bots never stop to ask.
@@ -124,8 +130,6 @@
 
 ## [0.52.0] - 2026-09-28
 
-[Compare with v0.51.0](https://github.com/milisp/codexia/compare/v0.51.0...v0.52.0)
-
 ### 🚀 Features & Improvements
 - **Publish games in one click**: the new 🚀 Publish button builds your project and hosts it on productship.lol, itch-style. You get a game link (`<game>--<you>.productship.lol`) and a project page with cover, Play button and description (`<you>.productship.lol/<game>`). Pick a cover, genre and 2D/3D (pre-filled from three.js, Phaser, etc.); progress shows live. Game projects that were never published get a highlighted button.
 - **Connect ProductShip once**: approve Codexia on productship.lol with GitHub or Google and choose your username; no separate Codexia login.
@@ -142,8 +146,6 @@
 
 ## [0.51.0] - 2026-09-25
 
-[Compare with v0.50.2](https://github.com/milisp/codexia/compare/v0.50.2...v0.51.0)
-
 ### 🚀 Features & Improvements
 - **Connectors**: the Plugins view has a new Connectors tab for connecting agents to external services through MCP servers. Quick Add installs to whichever agent is selected, Codex or Claude Agent.
 - **Parallel Search** joins Quick Add, next to You.com search, DeepWiki and Desktop Commander.
@@ -159,8 +161,6 @@
 - Removed a duplicate, unused MCP module; dev frontend now proxies API and WebSocket calls through Vite.
 
 ## [0.50.2] - 2026-09-09
-
-[Compare with v0.50.1](https://github.com/milisp/codexia/compare/v0.50.1...v0.50.2)
 
 - chore: bump project version to 0.50.2 (`550cd32f`)
 - chore: auto-generate release notes from CHANGELOG.md instead of docs/RELEASE_NOTE.md (`db8b2971`)

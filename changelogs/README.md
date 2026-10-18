@@ -2,8 +2,8 @@
 
 This directory holds a frozen archive of per-release changelogs for 0.42.0
 through 0.50.1. Releases from 0.50.2 onward are recorded back in the root
-[CHANGELOG.md](../CHANGELOG.md) — run `scripts/gen-changelog-entry.sh` before
-tagging to prepend a new entry there. The release workflow reads the
+[CHANGELOG.md](../CHANGELOG.md) — prepend a new entry there before tagging
+(the release workflow generates one from commit history if it is missing). The release workflow reads the
 `## [version]` section at the top of `CHANGELOG.md` matching the tag being
 published.
 
@@ -32,7 +32,7 @@ without written changelogs; use `git log v0.36.0..v0.42.0` for that range.
 ## Conventions
 
 - File name is the version: `<major>.<minor>.<patch>.md`.
-- Heading is `# <version> - <YYYY-MM-DD>`, followed by a compare link to the previous release.
+- Heading is `# <version> - <YYYY-MM-DD>`.
 - Sections, in this order, omitting any that are empty: `Added`, `Changed`,
   `Deprecated`, `Removed`, `Fixed`, `Security`, `Internal`.
 - Entries describe what changed for the user, not how it was implemented.
