@@ -21,7 +21,12 @@ export type AcpAuthMethod = {
   name: string;
   description?: string | null;
   /** keke reports whether a usable credential is already stored for the route. */
-  _meta?: { signedIn?: boolean; credentialSource?: string };
+  _meta?: {
+    signedIn?: boolean;
+    credentialSource?: string;
+    /** Set for a route that takes an API key (held in this variable) instead of a login. */
+    apiKeyVar?: string;
+  };
 };
 
 export type AcpInitializeResult = {
@@ -140,10 +145,20 @@ export async function acpCancel(connectionId: string, sessionId: string | null) 
   });
 }
 
-export async function acpAuthenticate(connectionId: string, methodId: string) {
+/**
+ * `remember` keeps the account as the agent's default for later processes;
+ * `apiKey` is for a route that takes a key instead of a login.
+ */
+export async function acpAuthenticate(
+  connectionId: string,
+  methodId: string,
+  options: { remember?: boolean; apiKey?: string } = {}
+) {
   await postNoContent('/api/acp/authenticate', {
     connection_id: connectionId,
     method_id: methodId,
+    remember: options.remember ?? false,
+    api_key: options.apiKey ?? null,
   });
 }
 

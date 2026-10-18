@@ -36,6 +36,12 @@ pub(crate) struct AcpConnectionParams {
 pub(crate) struct AcpAuthParams {
     pub connection_id: String,
     pub method_id: String,
+    /// Keep the account as the agent's default route.
+    #[serde(default)]
+    pub remember: bool,
+    /// For a route that takes an API key instead of a login.
+    #[serde(default)]
+    pub api_key: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -170,7 +176,12 @@ pub(crate) async fn api_acp_authenticate(
 ) -> Result<StatusCode, ErrorResponse> {
     state
         .acp_state
-        .authenticate(&params.connection_id, &params.method_id)
+        .authenticate(
+            &params.connection_id,
+            &params.method_id,
+            params.remember,
+            params.api_key.as_deref(),
+        )
         .await
         .map_err(err)?;
     Ok(StatusCode::OK)

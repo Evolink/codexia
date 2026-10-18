@@ -14,7 +14,7 @@ vi.mock('@/services/apiAdapt/acp', () => ({
 
 const bot = { id: 'brief', name: 'Daily Brief', cwd: '' } as Bot;
 const methods = [
-  { id: 'anthropic', name: 'Anthropic', _meta: { signedIn: false } },
+  { id: 'anthropic', name: 'Anthropic', _meta: { signedIn: false, apiKeyVar: 'ANTHROPIC_API_KEY' } },
   { id: 'codex', name: 'ChatGPT', _meta: { signedIn: false } },
 ];
 
@@ -27,16 +27,28 @@ describe('BotSignIn', () => {
 
   it('signs in with ChatGPT and opens the session in the bot folder', async () => {
     render(<BotSignIn bot={bot} connectionId="c1" methods={methods} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with ChatGPT' }));
+    fireEvent.click(screen.getByRole('button', { name: /ChatGPT/ }));
     await waitFor(() => expect(useBotUiStore.getState().sessionByBot.brief).toBe('s1'));
-    expect(acpAuthenticate).toHaveBeenCalledWith('c1', 'codex');
+    expect(acpAuthenticate).toHaveBeenCalledWith('c1', 'codex', { apiKey: undefined });
     expect(acpNewSession).toHaveBeenCalledWith('c1', '');
+  });
+
+  it('asks for an API key instead of a login for a key route', async () => {
+    render(<BotSignIn bot={bot} connectionId="c1" methods={methods} />);
+    expect(screen.getByRole('button', { name: /Anthropic/ }).textContent).toContain('Add API key');
+    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }));
+    expect(acpAuthenticate).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Anthropic API key'), { target: { value: 'sk-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(acpAuthenticate).toHaveBeenCalledWith('c1', 'anthropic', { apiKey: 'sk-1' })
+    );
   });
 
   it('shows why a sign-in failed next to the buttons', async () => {
     acpAuthenticate.mockRejectedValue(new Error('login cancelled'));
     render(<BotSignIn bot={bot} connectionId="c1" methods={methods} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with ChatGPT' }));
+    fireEvent.click(screen.getByRole('button', { name: /ChatGPT/ }));
     expect(await screen.findByText(/login cancelled/)).toBeTruthy();
   });
 });

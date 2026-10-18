@@ -64,13 +64,19 @@ fn configure_oauth(config: &mut Value) {
         config["oauth"] = oauth;
         return;
     }
-    if github_url(config).is_err() { return; }
-    let Ok(client_id) = std::env::var("MCP_GITHUB_CLIENT_ID") else { return; };
+    let prefix = if github_url(config).is_ok() {
+        "MCP_GITHUB"
+    } else if google_url(config) {
+        "GOOGLE"
+    } else {
+        return;
+    };
+    let Ok(client_id) = std::env::var(format!("{prefix}_CLIENT_ID")) else { return; };
     if client_id.trim().is_empty() { return; }
     let mut oauth = json!({"client_id":client_id.trim(), "redirect_uri":
-        std::env::var("MCP_GITHUB_REDIRECT_URI").unwrap_or_else(|_| "http://127.0.0.1:8765/callback".into())});
-    if std::env::var("MCP_GITHUB_CLIENT_SECRET").is_ok_and(|value| !value.trim().is_empty()) {
-        oauth["client_secret"] = json!("${MCP_GITHUB_CLIENT_SECRET}");
+        std::env::var(format!("{prefix}_REDIRECT_URI")).unwrap_or_else(|_| "http://127.0.0.1:8765/callback".into())});
+    if std::env::var(format!("{prefix}_CLIENT_SECRET")).is_ok_and(|value| !value.trim().is_empty()) {
+        oauth["client_secret"] = json!(format!("${{{prefix}_CLIENT_SECRET}}"));
     }
     config["oauth"] = oauth;
 }
@@ -119,6 +125,17 @@ fn save_document(path: &Path, root: &Value) -> Result<(), String> {
 
 pub async fn add_mcp_server(name: String, config: Value) -> Result<(), String> { update(name, Some(config)).await }
 pub async fn remove_mcp_server(name: String) -> Result<(), String> { update(name, None).await }
+
+/// Google's remote Workspace MCP servers have no dynamic client registration.
+fn google_url(config: &Value) -> bool {
+    let Ok(raw) = remote_url(config) else { return false; };
+    reqwest::Url::parse(raw).is_ok_and(|url| {
+        url.scheme() == "https"
+            && url.username().is_empty()
+            && url.password().is_none()
+            && matches!(url.host_str(), Some("gmailmcp.googleapis.com" | "calendarmcp.googleapis.com" | "drivemcp.googleapis.com"))
+    })
+}
 
 fn github_url(config: &Value) -> Result<String, String> {
     let raw = remote_url(config)?;
@@ -271,6 +288,9 @@ pub async fn login_mcp_server(name: String) -> Result<(), String> {
     if github_url(config).is_ok() && config.get("oauth").is_none() {
         return Err("Configure MCP_GITHUB_CLIENT_ID before authorizing GitHub in the browser".into());
     }
+    if google_url(config) && config.get("oauth").is_none() {
+        return Err("Set GOOGLE_CLIENT_ID (and GOOGLE_CLIENT_SECRET) in the host environment before authorizing Google".into());
+    }
     // CLI login reads the native document; ACP metadata alone is not enough.
     if let Some(oauth) = config.get("oauth") {
         let _write = WRITE_LOCK.lock().await;
@@ -415,5 +435,14 @@ mod tests {
         assert_eq!(&lines[..4], &["mcp", "login", "--", name]);
         assert_eq!(lines[4], root.to_string_lossy());
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn google_workspace_urls_are_recognized() {
+        let google = |url: &str| google_url(&json!({"type":"http","url":url}));
+        assert!(google("https://gmailmcp.googleapis.com/mcp/v1"));
+        assert!(google("https://calendarmcp.googleapis.com/mcp/v1"));
+        assert!(!google("https://evil.example/gmailmcp.googleapis.com"));
+        assert!(!google("http://gmailmcp.googleapis.com/mcp/v1"));
     }
 }

@@ -41,6 +41,9 @@ pub struct ConnectionPolicy {
     /// tools that only leave something for the person to review. A request
     /// keke marks as person-required is still put in front of a person.
     pub auto_allow: Vec<String>,
+    /// ACP `_meta` sent with every `session/new` and `session/load`: who the
+    /// session is, for an agent that reads it (keke's `keke.dev/session`).
+    pub session_meta: Option<Value>,
 }
 
 impl ConnectionPolicy {
@@ -429,7 +432,7 @@ impl AcpClient {
         let res = self
             .request(
                 "session/new",
-                json!({ "cwd": cwd, "mcpServers": servers }),
+                self.with_session_meta(json!({ "cwd": cwd, "mcpServers": servers })),
             )
             .await?;
         let session_id = res
@@ -467,7 +470,9 @@ impl AcpClient {
         let res = self
             .request(
                 "session/load",
-                json!({ "sessionId": session_id, "cwd": cwd, "mcpServers": servers }),
+                self.with_session_meta(
+                    json!({ "sessionId": session_id, "cwd": cwd, "mcpServers": servers }),
+                ),
             )
             .await;
         self.replaying.remove(session_id);
@@ -573,9 +578,25 @@ impl AcpClient {
     }
 
     pub async fn authenticate(&self, method_id: &str) -> Result<(), String> {
+        self.authenticate_with(method_id, false, None).await
+    }
+
+    /// [`Self::authenticate`], and with `remember` the agent keeps the route
+    /// as its default for later processes (the person's first-use choice).
+    /// `api_key` is for a route that takes a key instead of a login.
+    pub async fn authenticate_with(
+        &self,
+        method_id: &str,
+        remember: bool,
+        api_key: Option<&str>,
+    ) -> Result<(), String> {
+        let mut meta = json!({ "persist": remember });
+        if let Some(key) = api_key {
+            meta["apiKey"] = json!(key);
+        }
         self.request(
             "authenticate",
-            json!({ "methodId": method_id, "_meta": { "persist": false } }),
+            json!({ "methodId": method_id, "_meta": meta }),
         )
         .await
         .map(|_| ())
@@ -649,6 +670,13 @@ impl AcpClient {
     /// The servers to hand a new or loaded session, with a fresh
     /// `codexia-bots` capability each time, plus those capabilities so the
     /// caller can bind them to the session id.
+    fn with_session_meta(&self, mut params: Value) -> Value {
+        if let Some(meta) = &self.policy.session_meta {
+            params["_meta"] = meta.clone();
+        }
+        params
+    }
+
     fn session_mcp_servers(&self) -> (Vec<Value>, Vec<String>) {
         let mut issued = Vec::new();
         let mut servers = self.policy.mcp_servers.clone();
@@ -1057,6 +1085,15 @@ for line in sys.stdin:
         let (client, _) = fixture(ConnectionPolicy { strict_mcp: true, ..Default::default() }, "client-only").await.unwrap();
         let new: Value = serde_json::from_str(&client.new_session("/tmp").await.unwrap_err()).unwrap();
         assert_eq!(new["mcpServers"], json!([]));
+        assert!(new.get("_meta").is_none());
+        client.kill().await;
+        let meta = json!({ "keke.dev/session": { "instructions": "You are Brief." } });
+        let policy = ConnectionPolicy { strict_mcp: true, session_meta: Some(meta.clone()), ..Default::default() };
+        let (client, _) = fixture(policy, "client-only").await.unwrap();
+        let new: Value = serde_json::from_str(&client.new_session("/tmp").await.unwrap_err()).unwrap();
+        let load: Value = serde_json::from_str(&client.load_session("stored", "/tmp").await.unwrap_err()).unwrap();
+        assert_eq!(new["_meta"], meta);
+        assert_eq!(load["_meta"], meta);
         client.kill().await;
     }
 

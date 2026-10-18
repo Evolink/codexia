@@ -26,7 +26,7 @@ Its reported weakness is that too many proactive cards become noise.
 
 ## Where Codexia is already ahead (shipped)
 
-- **A boundary per bot.** Each bot has its own project folder, memory, trust
+- **A boundary per bot.** Each bot has its own folder, memory, trust
   level and explicit MCP selection (client-only isolation). Grok Bot's bots
   share one computer and one set of logins.
 - **Any model and provider.** keke routes to many vendors, and each bot picks
@@ -79,22 +79,29 @@ in [BOTS.md](BOTS.md#drafts-and-hand-backs).
 
 ### 3. Role templates, honest about requirements (shipped)
 
-A template gallery in the Create Bot flow. Each template states **what it
+A template gallery in the New bot page. Each template states **what it
 needs** (MCP servers, schedule, trust level) and **where it stops** (draft,
 report, or action with approval). Only roles Codexia can actually run are
 listed:
 
 | Group | Examples | Needs | Stops at |
 | --- | --- | --- | --- |
-| Engineering | PR reviewer, CI failure triager, dependency upgrader, bug reproducer, docs auditor | project folder, GitHub MCP | report or PR draft |
 | Briefs and monitoring | daily brief, competitor watch, release notes digest | web search; optional RSS/Slack MCP | report |
 | Inbox and calendar | inbox triage, meeting prep | Gmail/Calendar MCP | drafts |
 | Operations | expense summary, invoice matcher | Drive/Sheets MCP | report; payments always ask |
 | Personal | subscription review, travel options | web search | list; cancellations and bookings ask |
+| Product | docs auditor, release digest | GitHub MCP | report; rewrites and notes as drafts |
+
+No other product's gallery has a code-review or pull-request role (Grok Bot's
+Engineering roles reproduce bugs, profile, prototype and play-test; none
+reviews code), and none asks for a project folder when a bot is created:
+each gives the agent a computer or folder of its own. So a new bot never asks
+for one; a project folder is an advanced setting. Coding work stays in
+Codexia's Projects.
 
 Templates are starting points: they prefill name, role prompt, schedule and
-suggested tools. A missing MCP server shows as "Connect GitHub" next to the
-template rather than failing on the first run.
+suggested tools. A missing MCP server shows its logo with a **Connect** button
+during setup rather than failing on the first run.
 
 ### 4. Event triggers (shipped)
 

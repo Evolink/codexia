@@ -1,6 +1,3 @@
-import { open } from '@tauri-apps/plugin-dialog';
-import { FolderOpen } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BOT_AVATARS, BOT_COLORS } from './botDefaults';
@@ -14,11 +11,9 @@ interface BotIdentityFieldsProps {
   onAvatarChange: (value: string) => void;
   color: string;
   onColorChange: (value: string) => void;
-  cwd: string;
-  onCwdChange: (value: string) => void;
 }
 
-/** Who the bot is and where it works: name, role, look and workspace. */
+/** Who the bot is: name, role and look. */
 export function BotIdentityFields({
   name,
   onNameChange,
@@ -28,19 +23,9 @@ export function BotIdentityFields({
   onAvatarChange,
   color,
   onColorChange,
-  cwd,
-  onCwdChange,
 }: BotIdentityFieldsProps) {
-  const pickWorkspace = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      defaultPath: cwd || undefined,
-    });
-    if (!selected || Array.isArray(selected)) return;
-    onCwdChange(selected);
-  };
-
+  // A role's own avatar stays selectable next to the stock ones.
+  const avatars = BOT_AVATARS.includes(avatar) || !avatar ? BOT_AVATARS : [avatar, ...BOT_AVATARS];
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -62,13 +47,15 @@ export function BotIdentityFields({
       <div className="space-y-1">
         <Label>Avatar</Label>
         <div className="flex flex-wrap gap-1">
-          {BOT_AVATARS.map((emoji) => (
+          {avatars.map((emoji) => (
             <button
               type="button"
               key={emoji}
+              aria-label={`Avatar ${emoji}`}
+              aria-pressed={avatar === emoji}
               onClick={() => onAvatarChange(emoji)}
               className={`flex h-8 w-8 items-center justify-center rounded-md border text-base ${
-                avatar === emoji ? 'border-primary bg-accent' : 'border-transparent'
+                avatar === emoji ? 'border-primary bg-muted' : 'border-transparent hover:bg-muted'
               }`}
             >
               {emoji}
@@ -88,21 +75,6 @@ export function BotIdentityFields({
               }`}
             />
           ))}
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor="bot-cwd">Workspace</Label>
-        <div className="flex gap-2">
-          <Input
-            id="bot-cwd"
-            value={cwd}
-            placeholder="/path/to/project"
-            onChange={(e) => onCwdChange(e.target.value)}
-          />
-          <Button type="button" variant="outline" size="icon" onClick={pickWorkspace}>
-            <FolderOpen className="h-4 w-4" />
-          </Button>
         </div>
       </div>
     </>

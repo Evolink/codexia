@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useLayoutStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
@@ -28,7 +28,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@/components/bot/BotSettingsDialog', () => ({ BotSettingsDialog: () => null }));
 vi.mock('@/components/bot', () => ({ SideBarBotPane: () => null }));
 vi.mock('@/components/bot/BotNotifications', () => ({ BotNotifications: () => null }));
 vi.mock('@/components/pairing/DesktopDrawer', () => ({ DesktopDrawer: () => null }));
@@ -50,7 +49,7 @@ import { AppSideBar } from './AppSidebar';
 beforeEach(() => {
   vi.clearAllMocks();
   useAcpStore.getState().reset();
-  useBotUiStore.setState({ bots: [], selectedBotId: null, connectionByBot: {}, sessionByBot: {} });
+  useBotUiStore.setState({ bots: [], selectedBotId: null, newBotOpen: false, connectionByBot: {}, sessionByBot: {} });
 });
 
 describe('AppSideBar', () => {
@@ -65,71 +64,16 @@ describe('AppSideBar', () => {
     expect(useLayoutStore.getState().view).toBe('bot');
   });
 
-  it('clears the pane when a bot is created, so the previous bot does not appear to be it', async () => {
-    createBot.mockImplementation(async (bot: Record<string, unknown>) => ({
-      ...bot,
-      title: null,
-      agentId: 'keke',
-      provider: null,
-      model: null,
-      reasoningEffort: null,
-      systemPrompt: null,
-      trustLevel: 'ask',
-      approvedTools: '[]',
-      mcpServers: '[]',
-      pinned: false,
-      archived: false,
-      notificationsEnabled: true,
-      unreadCount: 0,
-      lastViewedAt: null,
-      createdAt: '',
-      updatedAt: new Date().toISOString(),
-    }));
-    // What the previously open bot left in the shared ACP store.
-    useAcpStore.getState().setEntries([{ id: 'a', role: 'agent', text: 'bot1 was talking' }]);
-
+  it('opens the New bot page from + without creating a bot', () => {
+    useLayoutStore.setState({ view: 'agent' });
     render(
       <SidebarProvider>
         <AppSideBar />
       </SidebarProvider>
     );
     fireEvent.click(screen.getByRole('button', { name: 'newBot' }));
+    expect(useLayoutStore.getState().view).toBe('bot');
+    expect(useBotUiStore.getState().newBotOpen).toBe(true);
     expect(createBot).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole('button', { name: /Blank bot/ }));
-
-    await waitFor(() => expect(useAcpStore.getState().entries).toEqual([]));
-    expect(useBotUiStore.getState().selectedBotId).toBeTruthy();
-    expect(updateBot).not.toHaveBeenCalled();
-    expect(createAutomation).not.toHaveBeenCalled();
-  });
-
-  it('creates a bot from a role with its connected tools and its routine', async () => {
-    createBot.mockImplementation(async (bot: Record<string, unknown>) => ({ ...bot, agentId: 'keke' }));
-    updateBot.mockImplementation(async (id: string, patch: Record<string, unknown>) => ({
-      id,
-      agentId: 'keke',
-      ...patch,
-    }));
-    render(
-      <SidebarProvider>
-        <AppSideBar />
-      </SidebarProvider>
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'newBot' }));
-    // GitHub is configured, so the role shows it as connected, not as a link.
-    expect(await screen.findAllByText('GitHub ✓')).not.toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Use PR Reviewer' }));
-
-    await waitFor(() => expect(createAutomation).toHaveBeenCalled());
-    expect(createBot).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'PR Reviewer', avatar: '🔍', trustLevel: 'read_only' })
-    );
-    expect(updateBot).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ title: 'Reviews open pull requests', mcpServers: ['keke:github-mcp'] })
-    );
-    expect(createAutomation).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Morning PR review', agent: 'bot', projects: [] })
-    );
   });
 });

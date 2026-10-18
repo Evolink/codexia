@@ -21,6 +21,9 @@ interface BotUiStore {
   removeBot: (id: string) => void;
   selectedBotId: string | null;
   setSelectedBotId: (id: string | null) => void;
+  /** The New bot page is showing in the Bot tab. Nothing is created until it is confirmed. */
+  newBotOpen: boolean;
+  setNewBotOpen: (open: boolean) => void;
   /**
    * The keke process each bot is talking to. Kept so switching back to a bot
    * reuses its process instead of paying for a spawn and a fresh session.
@@ -83,7 +86,9 @@ export const useBotUiStore = create<BotUiStore>((set) => ({
       };
     }),
   selectedBotId: null,
-  setSelectedBotId: (selectedBotId) => set({ selectedBotId }),
+  setSelectedBotId: (selectedBotId) => set({ selectedBotId, newBotOpen: false }),
+  newBotOpen: false,
+  setNewBotOpen: (newBotOpen) => set({ newBotOpen }),
   connectionByBot: {},
   mcpChangedByBot: {},
   markMcpChanged: (name) =>

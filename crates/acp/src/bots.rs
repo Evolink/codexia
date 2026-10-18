@@ -229,7 +229,25 @@ pub async fn policy(
             ..Default::default()
         }),
         auto_allow: BUILTIN_SAFE_TOOLS.iter().map(|t| t.to_string()).collect(),
+        session_meta: Some(session_meta(bot)),
     }
+}
+
+/// Who the bot is, as keke reads it per session from `_meta["keke.dev/session"]`.
+///
+/// The same three things [`agent_def`] hands over as environment variables.
+/// Both are sent while the pinned keke may predate the `_meta` key: an older
+/// keke ignores an unknown `_meta` key, a newer one lays it over the variables.
+pub fn session_meta(bot: &BotRecord) -> Value {
+    let mut identity = serde_json::Map::new();
+    if let Some(prompt) = bot.system_prompt.as_deref().filter(|p| !p.trim().is_empty()) {
+        identity.insert("instructions".into(), json!(prompt));
+    }
+    if let Some(dir) = memory_dir(&bot.id) {
+        identity.insert("memoryDir".into(), json!(dir.to_string_lossy()));
+    }
+    identity.insert("requireApproval".into(), json!(REQUIRED_APPROVALS));
+    json!({ "keke.dev/session": identity })
 }
 
 /// Point a freshly spawned keke at the bot's provider.
@@ -317,6 +335,15 @@ pub async fn apply_settings(client: &AcpClient, session_id: &str, bot: &BotRecor
         {
             log::warn!("bot {}: could not set {id}: {e}", bot.name);
         }
+    }
+    // Bots look things up on the web as a matter of course, so search is on
+    // for every bot session. keke offers the switch only on a route that can
+    // search, and an older keke offers none; either way the bot runs without.
+    if let Err(e) = client
+        .set_config_option(Some(session_id), "web_search", &json!(true))
+        .await
+    {
+        log::debug!("bot {}: web search not available: {e}", bot.name);
     }
 }
 
@@ -681,6 +708,23 @@ mod tests {
         let rules = def.env.get("KEKE_REQUIRE_APPROVAL").unwrap();
         assert!(rules.split(',').any(|r| r == "*pay*"));
         assert_eq!(rules.split(',').count(), REQUIRED_APPROVALS.len());
+    }
+
+    #[test]
+    fn a_bot_session_names_who_it_is() {
+        let bot: BotRecord = serde_json::from_value(json!({
+            "id": "brief", "name": "Brief", "title": null,
+            "avatar": "", "color": "", "agentId": "keke", "provider": null,
+            "model": null, "reasoningEffort": null, "cwd": "",
+            "systemPrompt": "You are Brief.", "trustLevel": "read_only", "approvedTools": "[]",
+            "mcpServers": "[]", "allowedBotIds": "[]", "pinned": false,
+            "archived": false, "notificationsEnabled": true, "unreadCount": 0,
+            "lastViewedAt": null, "createdAt": "", "updatedAt": ""
+        })).unwrap();
+        let identity = &session_meta(&bot)["keke.dev/session"];
+        assert_eq!(identity["instructions"], "You are Brief.");
+        assert!(identity["memoryDir"].as_str().unwrap().ends_with("/.codexia/bots/brief/memory"));
+        assert_eq!(identity["requireApproval"].as_array().unwrap().len(), REQUIRED_APPROVALS.len());
     }
 
     #[test]

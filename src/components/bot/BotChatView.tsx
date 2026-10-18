@@ -13,10 +13,10 @@ import { BotComposer } from './BotComposer';
 import { BotHome } from './BotHome';
 import { BotInbox } from './BotInbox';
 import { BotMessageList } from './BotMessageList';
+import { BotNewPage } from './BotNewPage';
 import { BotPermissionGate } from './BotPermissionGate';
 import { BotRoutines } from './BotRoutines';
-import { BotSettingsDialog } from './BotSettingsDialog';
-import { BotTemplatePicker } from './BotTemplatePicker';
+import { BotSettingsPage } from './BotSettingsPage';
 import { BotWaitingApprovals } from './BotWaitingApprovals';
 import { TRUST_LEVELS } from './botAgentDef';
 import { useBotDragDrop } from './useBotDragDrop';
@@ -25,12 +25,12 @@ import { useOpenBot } from './useOpenBot';
 
 /** The full-screen conversation with one bot. */
 export default function BotChatView() {
-  const { bots, botsLoaded, setBots, selectedBotId, connectionByBot } = useBotUiStore();
+  const { bots, botsLoaded, setBots, selectedBotId, connectionByBot, newBotOpen } = useBotUiStore();
   const connectionId = useAcpStore((s) => s.connectionId);
-  const { newBot, setNewBot, creating, handleCreateBot, pickerOpen, setPickerOpen, createFrom } =
-    useCreateBot();
+  const { creating, openNewBot, closeNewBot, create } = useCreateBot();
   const openBot = useOpenBot();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Which bot's settings are showing; switching bots returns to the chat.
+  const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [tasksOpen, setTasksOpen] = useState(false);
   const { open: isSidebarOpen, openMobile, isMobile } = useSidebar();
   const showTrigger = isMobile ? !openMobile : !isSidebarOpen;
@@ -46,19 +46,10 @@ export default function BotChatView() {
       .catch((e) => console.error('bots: failed to list', e));
   }, [setBots]);
 
-  const picker = (
-    <BotTemplatePicker
-      open={pickerOpen}
-      onOpenChange={setPickerOpen}
-      creating={creating}
-      onPick={createFrom}
-    />
-  );
-
   const bot = bots.find((b) => b.id === selectedBotId);
   useBotDragDrop(bot);
 
-  if (!bot) {
+  if (newBotOpen || !bot) {
     return (
       <div className="flex h-full min-h-0 flex-col">
         <header
@@ -71,14 +62,17 @@ export default function BotChatView() {
             </div>
           )}
         </header>
-        <BotHome
-          bots={bots}
-          loaded={botsLoaded}
-          creating={creating}
-          onCreate={handleCreateBot}
-          onSelect={openBot}
-        />
-        {picker}
+        {newBotOpen ? (
+          <BotNewPage creating={creating} onClose={closeNewBot} onCreate={create} />
+        ) : (
+          <BotHome
+            bots={bots}
+            loaded={botsLoaded}
+            creating={creating}
+            onCreate={openNewBot}
+            onSelect={openBot}
+          />
+        )}
       </div>
     );
   }
@@ -124,27 +118,23 @@ export default function BotChatView() {
           className="h-8 w-8"
           aria-label="Bot settings"
           title="Bot settings"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => setSettingsFor(bot.id)}
         >
           <Settings className="h-4 w-4" />
         </Button>
       </header>
 
-      <BotMessageList bot={bot} />
-      <BotInbox botId={bot.id} />
-      <BotWaitingApprovals bot={bot} />
-      <BotPermissionGate bot={bot} />
-      <BotComposer bot={bot} />
-
-      {picker}
-      <BotSettingsDialog
-        bot={newBot ?? bot}
-        open={settingsOpen || Boolean(newBot)}
-        onOpenChange={(next) => {
-          setSettingsOpen(next);
-          if (!next) setNewBot(null);
-        }}
-      />
+      {settingsFor === bot.id ? (
+        <BotSettingsPage key={bot.id} bot={bot} onClose={() => setSettingsFor(null)} />
+      ) : (
+        <>
+          <BotMessageList bot={bot} />
+          <BotInbox botId={bot.id} />
+          <BotWaitingApprovals bot={bot} />
+          <BotPermissionGate bot={bot} />
+          <BotComposer bot={bot} />
+        </>
+      )}
       <Dialog open={tasksOpen} onOpenChange={setTasksOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>

@@ -29,7 +29,9 @@ export function BotTrustFields({
               key={level.id}
               onClick={() => onTrustLevelChange(level.id)}
               className={`flex w-full flex-col items-start rounded-md border px-3 py-2 text-left ${
-                trustLevel === level.id ? 'border-primary bg-accent/60' : 'border-border'
+                trustLevel === level.id
+                  ? 'border-primary bg-muted'
+                  : 'border-border hover:bg-muted/60'
               }`}
             >
               <span className="text-sm font-medium">{level.label}</span>

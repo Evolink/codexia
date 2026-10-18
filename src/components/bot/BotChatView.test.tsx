@@ -16,18 +16,15 @@ vi.mock('@/components/ui/sidebar', () => ({
 vi.mock('@/hooks', () => ({ useTrafficLightConfig: () => ({ needsTrafficLightOffset: false }) }));
 vi.mock('./useCreateBot', () => ({
   useCreateBot: () => ({
-    newBot: null,
-    setNewBot: vi.fn(),
     creating: false,
-    handleCreateBot: vi.fn(),
-    pickerOpen: false,
-    setPickerOpen: vi.fn(),
-    createFrom: vi.fn(),
+    openNewBot: vi.fn(),
+    closeNewBot: vi.fn(),
+    create: vi.fn(),
   }),
 }));
 vi.mock('./useOpenBot', () => ({ useOpenBot: () => vi.fn() }));
 vi.mock('./useBotDragDrop', () => ({ useBotDragDrop: () => undefined }));
-vi.mock('./BotTemplatePicker', () => ({ BotTemplatePicker: () => null }));
+vi.mock('./BotNewPage', () => ({ BotNewPage: () => <h1>New bot</h1> }));
 vi.mock('./BotToday', () => ({ BotToday: () => <h1>Today</h1> }));
 
 import BotChatView from './BotChatView';
@@ -37,7 +34,7 @@ const brief = { id: 'brief', name: 'Daily Brief' } as Bot;
 describe('BotChatView', () => {
   beforeEach(() => {
     listBots.mockReset();
-    useBotUiStore.setState({ bots: [], botsLoaded: false, selectedBotId: null });
+    useBotUiStore.setState({ bots: [], botsLoaded: false, selectedBotId: null, newBotOpen: false });
   });
 
   it('loads the bots itself, so a phone with the sidebar closed lands on Today', async () => {
@@ -57,5 +54,13 @@ describe('BotChatView', () => {
     listBots.mockResolvedValue([]);
     render(<BotChatView />);
     expect(await screen.findByRole('heading', { name: 'Create your first bot' })).toBeTruthy();
+  });
+
+  it('shows the New bot page in place of Today while it is open', async () => {
+    listBots.mockResolvedValue([brief]);
+    useBotUiStore.setState({ newBotOpen: true });
+    render(<BotChatView />);
+    expect(await screen.findByRole('heading', { name: 'New bot' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Today' })).toBeNull();
   });
 });

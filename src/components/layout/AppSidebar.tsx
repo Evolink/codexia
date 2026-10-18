@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { AgentLogo } from '@/components/agent/AgentLogo';
 import { SideBarBotPane } from '@/components/bot';
 import { BotNotifications } from '@/components/bot/BotNotifications';
-import { BotSettingsDialog } from '@/components/bot/BotSettingsDialog';
-import { BotTemplatePicker } from '@/components/bot/BotTemplatePicker';
 import { useCreateBot } from '@/components/bot/useCreateBot';
 import { DesktopDrawer } from '@/components/pairing/DesktopDrawer';
 import { Button } from '@/components/ui/button';
@@ -41,8 +39,7 @@ export function AppSideBar() {
   // Only a phone drives a remote machine; a desktop is its own backend and has
   // nothing to switch between.
   const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(false);
-  const { newBot, setNewBot, creating, handleCreateBot, pickerOpen, setPickerOpen, createFrom } =
-    useCreateBot();
+  const { openNewBot } = useCreateBot();
   const setView = useLayoutStore((s) => s.setView);
   const selectedAgent = useAgentSettingsStore((s) => s.selectedAgent);
   const acpActive = useAcpStore((s) => s.active);
@@ -107,8 +104,7 @@ export function AppSideBar() {
                   size="icon-sm"
                   title={t('newBot')}
                   aria-label={t('newBot')}
-                  onClick={handleCreateBot}
-                  disabled={creating}
+                  onClick={openNewBot}
                 >
                   <Plus />
                 </Button>
@@ -158,22 +154,6 @@ export function AppSideBar() {
         onOpenChange={setSessionManagerOpen}
         defaultTab={activeSidebarTab === 'cc' ? 'cc' : 'codex'}
       />
-
-      <BotTemplatePicker
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        creating={creating}
-        onPick={createFrom}
-      />
-      {newBot && (
-        <BotSettingsDialog
-          bot={newBot}
-          open={Boolean(newBot)}
-          onOpenChange={(open) => {
-            if (!open) setNewBot(null);
-          }}
-        />
-      )}
 
       {isPhone() && <DesktopDrawer open={desktopDrawerOpen} onOpenChange={setDesktopDrawerOpen} />}
     </>

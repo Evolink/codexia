@@ -33,6 +33,9 @@ interface BotOptionsStore {
    * only and must not be shown for another one.
    */
   byProvider: Record<string, ProviderCatalogue>;
+  /** The account chosen on first use; keke keeps it as its default route. */
+  defaultAccount: string;
+  setDefaultAccount: (id: string) => void;
   setCatalogue: (
     provider: string,
     catalogue: {
@@ -48,6 +51,8 @@ export const useBotOptionsStore = create<BotOptionsStore>()(
     (set) => ({
       authMethods: [],
       byProvider: {},
+      defaultAccount: '',
+      setDefaultAccount: (defaultAccount) => set({ defaultAccount }),
       setCatalogue: (provider, { authMethods, configOptions, models }) =>
         set((state) => {
           const previous = state.byProvider[provider];

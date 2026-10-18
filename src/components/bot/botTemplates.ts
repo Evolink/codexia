@@ -3,15 +3,12 @@ import type { BotTrustLevel } from '@/services/apiAdapt/bots';
 
 /** Something a template relies on, checked (or stated) before it is used. */
 export type TemplateNeed =
-  | { kind: 'folder' }
   /** A keke MCP server whose name contains one of `match`. */
-  | { kind: 'mcp'; label: string; match: string[]; optional?: boolean }
-  /** keke's vendor web search, which is configured in keke and cannot be checked here. */
-  | { kind: 'web' };
+  { kind: 'mcp'; label: string; icon: 'github' | 'google'; match: string[]; optional?: boolean };
 
 export type BotTemplate = {
   id: string;
-  group: 'Engineering' | 'Briefs' | 'Inbox and calendar' | 'Operations' | 'Personal';
+  group: 'Briefs' | 'Product' | 'Inbox and calendar' | 'Operations' | 'Personal';
   name: string;
   avatar: string;
   color: string;
@@ -31,14 +28,25 @@ function daily(hour: number, minute = 0, weekdays: AutomationWeekday[] = []): Au
   return { mode: 'daily', hour, minute, interval_hours: null, weekdays };
 }
 
-function every(hours: number): AutomationSchedule {
-  return { mode: 'interval', hour: null, minute: 0, interval_hours: hours, weekdays: [] };
-}
-
-const GITHUB: TemplateNeed = { kind: 'mcp', label: 'GitHub', match: ['github'] };
-const GMAIL: TemplateNeed = { kind: 'mcp', label: 'Gmail', match: ['gmail', 'mail'] };
-const CALENDAR: TemplateNeed = { kind: 'mcp', label: 'Calendar', match: ['calendar'] };
-const DRIVE: TemplateNeed = { kind: 'mcp', label: 'Drive or Sheets', match: ['drive', 'sheet'] };
+const GITHUB: TemplateNeed = { kind: 'mcp', label: 'GitHub', icon: 'github', match: ['github'] };
+const GMAIL: TemplateNeed = {
+  kind: 'mcp',
+  label: 'Gmail',
+  icon: 'google',
+  match: ['gmail', 'mail'],
+};
+const CALENDAR: TemplateNeed = {
+  kind: 'mcp',
+  label: 'Calendar',
+  icon: 'google',
+  match: ['calendar'],
+};
+const DRIVE: TemplateNeed = {
+  kind: 'mcp',
+  label: 'Drive or Sheets',
+  icon: 'google',
+  match: ['drive', 'sheet'],
+};
 
 const HAND_OVER =
   'Never send, post, publish or comment yourself: save it with propose_draft. ' +
@@ -47,78 +55,18 @@ const HAND_OVER =
 
 export const BOT_TEMPLATES: BotTemplate[] = [
   {
-    id: 'pr-reviewer',
-    group: 'Engineering',
-    name: 'PR Reviewer',
-    avatar: '🔍',
-    color: '#2563eb',
-    title: 'Reviews open pull requests',
-    prompt:
-      "You review pull requests for this project. Read the diff and the surrounding code, run the project's tests or checks when useful, and report concrete problems: bugs, missing tests, risky changes. Skip style nits. Put review comments in a draft for the person instead of posting them. " +
-      HAND_OVER,
-    trustLevel: 'read_only',
-    needs: [{ kind: 'folder' }, GITHUB],
-    stopsAt: 'Report, with review comments as a draft',
-    routine: {
-      name: 'Morning PR review',
-      prompt:
-        'Review the pull requests opened or updated since your last review. One short section per PR: verdict, the problems worth fixing, and anything to check by hand.',
-      schedule: daily(9, 0, WEEKDAYS),
-    },
-  },
-  {
-    id: 'ci-triager',
-    group: 'Engineering',
-    name: 'CI Triager',
-    avatar: '🚨',
-    color: '#db2777',
-    title: 'Explains failing CI runs',
-    prompt:
-      'You triage CI failures for this project. For each failed run, read the logs, find the first real error, decide whether it is a flaky test, an infrastructure problem or a real regression, and point at the commit and file most likely responsible. ' +
-      HAND_OVER,
-    trustLevel: 'read_only',
-    needs: [{ kind: 'folder' }, GITHUB],
-    stopsAt: 'Report',
-    routine: {
-      name: 'Check CI',
-      prompt:
-        'Look at CI runs that failed since your last check. If none failed, reply with one line saying so.',
-      schedule: every(2),
-    },
-  },
-  {
-    id: 'dependency-upgrader',
-    group: 'Engineering',
-    name: 'Dependency Upgrader',
-    avatar: '📦',
-    color: '#16a34a',
-    title: 'Keeps dependencies current',
-    prompt:
-      'You keep this project’s dependencies up to date. Upgrade a small batch at a time on a new branch, run the build and tests, and fix straightforward breakage. Never push or merge: write the PR description with propose_draft. ' +
-      HAND_OVER,
-    trustLevel: 'ask',
-    needs: [{ kind: 'folder' }],
-    stopsAt: 'Local branch, with the PR description as a draft',
-    routine: {
-      name: 'Weekly upgrades',
-      prompt:
-        'Check for outdated dependencies and upgrade the safe ones on a new branch. Report what changed and what you left alone.',
-      schedule: daily(10, 0, ['mon']),
-    },
-  },
-  {
     id: 'docs-auditor',
-    group: 'Engineering',
+    group: 'Product',
     name: 'Docs Auditor',
     avatar: '📚',
     color: '#0891b2',
     title: 'Finds docs that drifted from the code',
     prompt:
-      'You compare this project’s documentation with its code and report what is outdated, missing or wrong, with file and line references and the suggested fix. ' +
+      'You compare a repository’s documentation on GitHub with what shipped: merged pull requests and recent commits. Report what is outdated, missing or wrong, with file references and the suggested rewrite as a draft. Ask once which repositories to watch, then remember them. ' +
       HAND_OVER,
     trustLevel: 'read_only',
-    needs: [{ kind: 'folder' }],
-    stopsAt: 'Report',
+    needs: [GITHUB],
+    stopsAt: 'Report, rewrites as drafts',
     routine: {
       name: 'Weekly docs audit',
       prompt: 'Audit the docs against what changed in the code this week.',
@@ -127,16 +75,16 @@ export const BOT_TEMPLATES: BotTemplate[] = [
   },
   {
     id: 'release-digest',
-    group: 'Briefs',
+    group: 'Product',
     name: 'Release Digest',
     avatar: '🗞️',
     color: '#7c3aed',
     title: 'Summarizes what shipped',
     prompt:
-      'You read this project’s git history and summarize what changed for people who do not read commits: features, fixes, and anything that needs attention. Draft release notes with propose_draft when asked. ' +
+      'You read a repository’s merged pull requests and commits on GitHub and summarize what changed for people who do not read commits: features, fixes, and anything that needs attention. Draft release notes with propose_draft when asked. Ask once which repositories to cover, then remember them. ' +
       HAND_OVER,
     trustLevel: 'read_only',
-    needs: [{ kind: 'folder' }],
+    needs: [GITHUB],
     stopsAt: 'Report, release notes as a draft',
     routine: {
       name: 'Weekly digest',
@@ -155,7 +103,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       'You write a short daily briefing on the topics the person cares about. Search the web, prefer primary sources, link every claim, and keep it to what changed since yesterday. Ask once which topics to cover, then remember them. ' +
       HAND_OVER,
     trustLevel: 'read_only',
-    needs: [{ kind: 'web' }],
+    needs: [],
     stopsAt: 'Report',
     routine: {
       name: 'Morning brief',
@@ -238,21 +186,22 @@ export const BOT_TEMPLATES: BotTemplate[] = [
   },
 ];
 
-export const TEMPLATE_GROUPS = [...new Set(BOT_TEMPLATES.map((t) => t.group))];
+/** Gallery order: the everyday roles first. */
+export const TEMPLATE_GROUPS = (
+  ['Briefs', 'Inbox and calendar', 'Operations', 'Personal', 'Product'] as const
+).filter((group) => BOT_TEMPLATES.some((t) => t.group === group));
 
 /** The configured keke MCP servers that satisfy `need`, by name. */
-export function matchingServers(need: Extract<TemplateNeed, { kind: 'mcp' }>, names: string[]) {
+export function matchingServers(need: TemplateNeed, names: string[]) {
   return names.filter((name) => need.match.some((m) => name.toLowerCase().includes(m)));
 }
 
 /** The keke selections a template's tools resolve to on this machine. */
 export function templateServers(template: BotTemplate, names: string[]) {
   return template.needs.flatMap((need) =>
-    need.kind === 'mcp'
-      ? matchingServers(need, names)
-          .slice(0, 1)
-          .map((n) => `keke:${n}`)
-      : []
+    matchingServers(need, names)
+      .slice(0, 1)
+      .map((n) => `keke:${n}`)
   );
 }
 

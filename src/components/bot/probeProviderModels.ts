@@ -5,7 +5,7 @@ import {
   acpStart,
   acpStop,
 } from '@/services/apiAdapt/acp';
-import { captureBotOptions } from '@/stores/useBotOptionsStore';
+import { captureBotOptions, useBotOptionsStore } from '@/stores/useBotOptionsStore';
 
 /** The provider has no credential, and asking keke to use it would start a login flow. */
 export class ProviderNotSignedInError extends Error {}
@@ -39,5 +39,49 @@ export async function probeProviderModels(provider: string, cwd: string) {
     for (const id of sessionIds) {
       if (id) await acpDeleteSession(id).catch(() => {});
     }
+  }
+}
+/**
+ * Ask keke which accounts it offers, so a bot can be set up before any bot
+ * has run. The default route's models come along with the session.
+ */
+export async function probeAccounts() {
+  const started = await acpStart('keke', '');
+  try {
+    captureBotOptions('', started.initialize, started.session);
+  } finally {
+    await acpStop(started.connectionId).catch(() => {});
+    if (started.sessionId) await acpDeleteSession(started.sessionId).catch(() => {});
+  }
+}
+
+/**
+ * Make `account` keke's default route, signing in first when it has no
+ * credential (which may open a browser login), or storing `apiKey` for a route
+ * that takes a key. Bots without a model of their own then run on it.
+ */
+export async function chooseDefaultAccount(account: string, apiKey?: string) {
+  const started = await acpStart('keke', '');
+  const sessionIds = [started.sessionId];
+  try {
+    await acpAuthenticate(started.connectionId, account, { remember: true, apiKey });
+    const session = await acpNewSession(started.connectionId, '');
+    sessionIds.push(session.sessionId);
+    captureBotOptions(account, started.initialize, session);
+    // The list keke sent at start predates the login.
+    const store = useBotOptionsStore.getState();
+    store.setCatalogue(account, {
+      authMethods: store.authMethods.map((m) =>
+        m.id === account ? { ...m, _meta: { ...m._meta, signedIn: true } } : m
+      ),
+      configOptions: [],
+      models: null,
+    });
+    store.setDefaultAccount(account);
+  } finally {
+    await acpStop(started.connectionId).catch(() => {});
+    await Promise.all(
+      sessionIds.flatMap((id) => (id ? [acpDeleteSession(id).catch(() => {})] : []))
+    );
   }
 }

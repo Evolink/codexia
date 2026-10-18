@@ -6,13 +6,17 @@ bot when you want to return to the same assistant or schedule recurring work.
 
 ## Start with one useful task
 
-1. Open **Bots** in the sidebar and create a bot.
-2. Give it a recognizable name and a specific role, such as "Project reviewer".
-3. Choose its project folder and a working model/provider.
+1. Open **Bots** in the sidebar and press **+**.
+2. Describe what it should take care of, or pick a role.
+3. Set its name, role and avatar, then **Create bot**. The first time, choose
+   the AI account bots work with: sign in, or paste an API key.
 4. Keep **Ask** as the initial trust level.
 5. Send a small request first:
 
-   > Read this project's README and summarize how to run its tests. Do not change files.
+   > Find this week's Rust release notes and summarize what changed. Do not send anything.
+
+A bot works in a folder of its own. To point it at a project instead, drop the
+folder on its conversation.
 
 Clicking a bot opens its continuous conversation. Earlier messages and scheduled
 results appear in the same timeline; runtime sessions are managed automatically.

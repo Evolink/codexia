@@ -17,7 +17,7 @@ describe('bot templates', () => {
     expect(templateServers(inbox, ['GitHub', 'gmail-work', 'gmail-home'])).toEqual(['keke:gmail-work']);
     expect(templateServers(meeting, ['google-calendar'])).toEqual(['keke:google-calendar']);
     expect(templateServers(inbox, [])).toEqual([]);
-    const github = { kind: 'mcp' as const, label: 'GitHub', match: ['github'] };
+    const github = { kind: 'mcp' as const, label: 'GitHub', icon: 'github' as const, match: ['github'] };
     expect(matchingServers(github, ['my-GitHub', 'linear'])).toEqual(['my-GitHub']);
   });
 

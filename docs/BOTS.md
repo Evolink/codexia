@@ -1,23 +1,36 @@
 # Bots
 
-A bot is a named, long-lived agent with its own project folder, role, model,
-permissions, memory and tools. Bots run on the [keke](https://github.com/milisp/keke)
-agent. Create them in the sidebar's Bots group and configure them in the bot
-settings dialog. For a first-use walkthrough, see [bots_usage.md](bots_usage.md).
+A bot is a named, long-lived agent with its own role, model, permissions,
+memory, tools and folder (`~/.codexia/bots/<id>/workspace`, or a project folder
+set under Advanced in its settings). Bots run on the [keke](https://github.com/milisp/keke)
+agent. Create them with **+** in the sidebar's Bots group and change them from
+the gear in the bot's header, which opens its settings in place of the chat. For a first-use walkthrough, see [bots_usage.md](bots_usage.md).
 
 ## Starting from a role
 
-**New bot** opens a picker: a blank bot, or one of the roles grouped as
-Engineering, Briefs, Inbox and calendar, Operations and Personal. A role
-fills in the name, look, role prompt, trust level and tools, and adds its
-routine (shown on the card, e.g. "Weekdays 09:00"). Each card says:
+**New bot** opens a page in the Bot tab, in two steps. First, describe what
+the bot should take care of, or pick a role (Briefs, Inbox and calendar,
+Operations, Personal, Product). Then set its name, role, avatar and colour, check its connections and press
+**Create bot**. Nothing is created before that, so closing the page leaves
+nothing behind. New bots never ask for a folder or a model. Before the first
+bot, the Bot tab asks once which AI account bots work with, from the routes
+keke offers. Each is labelled by what it takes: ChatGPT and Grok sign in
+through the browser, Anthropic and other key routes ask for an API key
+inline, and a local server such as Ollama needs nothing. keke keeps the
+choice as its default route, and bots use its default model. If no account
+is usable later, a bot's chat shows the same list. A model can be picked per
+bot in its settings under **Advanced**.
 
-- **What it needs**: the project folder, a keke MCP server (GitHub, Gmail,
-  Calendar, Drive or Sheets), or web search. A configured server whose name
-  matches shows a check and is selected for the bot; a missing one shows
-  **Connect …**, which opens Plugins. Web search is turned on in keke's own
-  config (`[providers.<name>.web_search]`) and is not checked here; on a
-  Grok subscription login it currently returns no results.
+A role fills in the name, look, role prompt, trust level and tools, and adds
+its routine unless you untick it. The setup step shows:
+
+- **Connections**: each keke MCP server the role uses (GitHub, Gmail,
+  Calendar or Drive) with its logo. A configured server whose name matches
+  shows **Connected** and is selected for the bot; a missing one shows
+  **Connect**, which opens Plugins. Web search is not listed because every
+  bot has it: Codexia turns on keke's `web_search` session option for each
+  bot session (keke newer than 0.1.46; older keke keeps
+  its `[providers.<name>.web_search]` setting).
 - **Where it stops**: a report, a draft, or an action that asks you. Every
   role's prompt tells the bot to use `propose_draft` and `hand_back`.
 
@@ -92,8 +105,9 @@ reviewer is a model and can be wrong or misled; it is a check, not a guarantee.
 ## Steps only you can approve
 
 Some steps need your answer every time, at every trust level, whether or not
-anyone is watching. Codexia hands keke these tool-name rules
-(`KEKE_REQUIRE_APPROVAL`) for every bot:
+anyone is watching. Codexia hands keke these tool-name rules for every bot,
+in the `requireApproval` field of `session/new`'s `_meta["keke.dev/session"]`
+(and `KEKE_REQUIRE_APPROVAL` for older keke):
 
 ```
 *pay*  *purchase*  *checkout*  *buy*  *refund*  *transfer*  *subscri*  acp:*:*delete*
@@ -112,8 +126,8 @@ account scopes and spending limits as well.
 
 ## Memory
 
-Each bot has its own persistent memory folder, passed to keke as
-`KEKE_MEMORY_DIR`:
+Each bot has its own persistent memory folder, passed to keke as `memoryDir`
+in the same `_meta` (and `KEKE_MEMORY_DIR` for older keke):
 
 ```
 ~/.codexia/bots/<bot id>/memory
