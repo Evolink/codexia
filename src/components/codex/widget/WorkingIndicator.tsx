@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { fmtElapsed } from '@/components/agent/utils';
 import type { TurnTiming } from '@/components/codex/stores/useCodexStore';
 
-/** "Working… 0:12" while the turn runs, then "Worked 0:34" from turn.durationMs. */
+/** "Working… 0:12" while the turn runs; a finished turn reports its time on its work summary. */
 export function WorkingIndicator({
   turnTiming,
   retryNotice,
@@ -28,24 +28,14 @@ export function WorkingIndicator({
 
   const elapsed = inProgress && turnTiming ? Date.now() - turnTiming.startedAtMs : 0;
 
-  if (!turnTiming) return null;
-
-  if (inProgress) {
-    return (
-      <div className="text-sm text-muted-foreground animate-pulse">
-        {t('working')} {fmtElapsed(elapsed)}
-        {retryNotice && (
-          <span className="text-yellow-600 dark:text-yellow-400"> · {retryNotice}</span>
-        )}
-      </div>
-    );
-  }
-
-  if (turnTiming.durationMs === null) return null;
+  if (!inProgress) return null;
 
   return (
-    <div className="text-xs text-muted-foreground/60">
-      {t('worked')} {fmtElapsed(turnTiming.durationMs)}
+    <div className="text-sm text-muted-foreground animate-pulse">
+      {t('working')} {fmtElapsed(elapsed)}
+      {retryNotice && (
+        <span className="text-yellow-600 dark:text-yellow-400"> · {retryNotice}</span>
+      )}
     </div>
   );
 }

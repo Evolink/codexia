@@ -4,18 +4,8 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { PermissionRequestMessage } from '../../types/messages';
 import type { PermissionDecision } from '../../types/permission';
-import { NO_RAW_INPUT_TOOLS } from '.';
+import { DiffMessage } from './DiffMessage';
 import { ToolInputDisplay } from './ToolInputDisplay';
-import {
-  AskUserQuestionTool,
-  BashTool,
-  EditTool,
-  GlobTool,
-  GrepTool,
-  ReadTool,
-  TodoWriteTool,
-  WriteTool,
-} from './tool-use';
 
 const RESOLVED_LABEL: Record<PermissionDecision, string> = {
   allow: 'Allowed Once',
@@ -42,44 +32,20 @@ export function PermissionRequestCard({ msg, onResolve }: Props) {
 
       {/* Tool info */}
       <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-background/50 border border-amber-500/20 text-xs mb-3">
-        {!NO_RAW_INPUT_TOOLS.includes(msg.toolName) && (
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-muted-foreground">Tool:</span>
-            <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-amber-600 dark:text-amber-400">
-              {msg.toolName}
-            </code>
-          </div>
-        )}
-        {NO_RAW_INPUT_TOOLS.includes(msg.toolName) ? (
-          (() => {
-            const block = {
-              type: 'tool_use',
-              name: msg.toolName,
-              input: msg.toolInput,
-              id: msg.requestId,
-            } as any;
-            const errorProps = { inlineError: null, showError: false, onToggleError: () => {} };
-            switch (msg.toolName) {
-              case 'Read':
-                return <ReadTool block={block} {...errorProps} />;
-              case 'Edit':
-                return <EditTool block={block} {...errorProps} />;
-              case 'Write':
-                return <WriteTool block={block} {...errorProps} />;
-              case 'Bash':
-                return <BashTool block={block} {...errorProps} />;
-              case 'Glob':
-                return <GlobTool block={block} {...errorProps} />;
-              case 'Grep':
-                return <GrepTool block={block} {...errorProps} />;
-              case 'TodoWrite':
-                return <TodoWriteTool block={block} {...errorProps} />;
-              case 'AskUserQuestion':
-                return <AskUserQuestionTool block={block} {...errorProps} />;
-              default:
-                return null;
-            }
-          })()
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-muted-foreground">Tool:</span>
+          <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-amber-600 dark:text-amber-400">
+            {msg.toolName}
+          </code>
+        </div>
+        {msg.toolName === 'Edit' ? (
+          <>
+            <code className="font-mono text-muted-foreground">{msg.toolInput.file_path}</code>
+            <DiffMessage
+              oldString={String(msg.toolInput.old_string ?? '')}
+              newString={String(msg.toolInput.new_string ?? '')}
+            />
+          </>
         ) : (
           <ToolInputDisplay
             input={msg.toolInput}

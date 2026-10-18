@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import '@/lib/i18n';
 import type { AcpEntry } from '@/stores/useAcpStore';
 import { AcpToolCall } from './AcpToolCall';
+
+vi.mock('@/hooks/use-highlighted-code', () => ({
+  useHighlightedCode: (value: string) => value.split('\n'),
+}));
 
 type ToolEntry = Extract<AcpEntry, { role: 'tool' }>;
 

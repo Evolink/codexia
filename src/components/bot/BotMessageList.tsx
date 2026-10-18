@@ -1,7 +1,6 @@
 import { Bot as BotIcon, CircleCheck, Clock, Send, Zap } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { AcpThought } from '@/components/acp/AcpThought';
-import { AcpToolCall } from '@/components/acp/AcpToolCall';
+import { AcpTranscript } from '@/components/acp/AcpTranscript';
 import { Markdown } from '@/components/Markdown';
 import { Button } from '@/components/ui/button';
 import type { Bot } from '@/services/apiAdapt/bots';
@@ -25,8 +24,10 @@ export function BotMessageList({ bot }: { bot: Bot }) {
   // Per-bot, so a turn running in another conversation does not show this bot
   // as typing.
   const running = useBotUiStore((s) => Boolean(s.runningByBot[bot.id]));
-  // While the newest entry is a thought, it already says the bot is working.
-  const thinking = running && entries[entries.length - 1]?.role === 'thought';
+  // While the newest entry is a step (a thought or tool call), its running trace
+  // line already says the bot is working.
+  const lastRole = entries[entries.length - 1]?.role;
+  const stepping = running && (lastRole === 'thought' || lastRole === 'tool');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the count is the trigger, not a value the effect reads
@@ -53,56 +54,41 @@ export function BotMessageList({ bot }: { bot: Bot }) {
         </div>
       )}
 
-      {entries.map((entry, index) => {
-        if (entry.role === 'tool') {
-          return (
-            <div key={entry.id} className="max-w-[85%]">
-              <AcpToolCall entry={entry} />
-            </div>
-          );
-        }
+      <AcpTranscript
+        entries={entries}
+        running={running}
+        stepsClassName="pl-9 max-w-[85%]"
+        renderEntry={(entry) => {
+          if (entry.role === 'user' && entry.trigger) {
+            return <TriggeredTurn trigger={entry.trigger} text={entry.text} />;
+          }
 
-        if (entry.role === 'user' && entry.trigger) {
-          return <TriggeredTurn key={entry.id} trigger={entry.trigger} text={entry.text} />;
-        }
+          if (entry.role === 'user') {
+            return (
+              <div className="flex justify-end">
+                <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground">
+                  {entry.text}
+                </div>
+              </div>
+            );
+          }
 
-        if (entry.role === 'user') {
+          if (entry.role === 'error') {
+            return <div className="px-1 py-1 text-xs text-destructive">{entry.text}</div>;
+          }
+
           return (
-            <div key={entry.id} className="flex justify-end">
-              <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground">
-                {entry.text}
+            <div className="flex items-end gap-2">
+              <BotAvatar bot={bot} size="sm" />
+              <div className="min-w-0 max-w-[80%] rounded-2xl rounded-bl-md bg-muted px-3 py-2">
+                <Markdown value={entry.text} />
               </div>
             </div>
           );
-        }
+        }}
+      />
 
-        if (entry.role === 'error') {
-          return (
-            <div key={entry.id} className="px-1 py-1 text-xs text-destructive">
-              {entry.text}
-            </div>
-          );
-        }
-
-        if (entry.role === 'thought') {
-          return (
-            <div key={entry.id} className="pl-9">
-              <AcpThought text={entry.text} live={thinking && index === entries.length - 1} />
-            </div>
-          );
-        }
-
-        return (
-          <div key={entry.id} className="flex items-end gap-2">
-            <BotAvatar bot={bot} size="sm" />
-            <div className="min-w-0 max-w-[80%] rounded-2xl rounded-bl-md bg-muted px-3 py-2">
-              <Markdown value={entry.text} />
-            </div>
-          </div>
-        );
-      })}
-
-      {(connecting || (running && !thinking)) && (
+      {(connecting || (running && !stepping)) && (
         <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
           <BotAvatar bot={bot} size="sm" />
           {connecting ? `Waking ${bot.name}…` : 'Typing…'}

@@ -1,17 +1,34 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import {
+  ArrowRightLeftIcon,
+  BrainIcon,
+  FilePenIcon,
+  FileTextIcon,
+  GlobeIcon,
+  SearchIcon,
+  TerminalIcon,
+  Trash2Icon,
+  WrenchIcon,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
+import { CodeOutput } from '@/components/ai-elements/CodeOutput';
+import { Terminal } from '@/components/ai-elements/Terminal';
+import { Tool } from '@/components/ai-elements/Tool';
 import { DiffMessage } from '@/components/cc/session/messages/DiffMessage';
-import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { AcpEntry, AcpToolContent } from '@/stores/useAcpStore';
+import { toolStatus } from './transcript';
 
 type ToolEntry = Extract<AcpEntry, { role: 'tool' }>;
 
-const STATUS_TONE: Record<string, string> = {
-  pending: 'text-muted-foreground',
-  in_progress: 'text-blue-600 dark:text-blue-400',
-  completed: 'text-emerald-600 dark:text-emerald-400',
-  failed: 'text-destructive',
+// ACP `ToolKind` values; anything else falls back to a wrench.
+const KIND_ICON: Record<string, ReactNode> = {
+  read: <FileTextIcon />,
+  edit: <FilePenIcon />,
+  delete: <Trash2Icon />,
+  move: <ArrowRightLeftIcon />,
+  search: <SearchIcon />,
+  execute: <TerminalIcon />,
+  think: <BrainIcon />,
+  fetch: <GlobeIcon />,
 };
 
 /** Text of a `content` block, or null when it carries no inline text. */
@@ -25,25 +42,19 @@ function ToolContent({ item }: { item: AcpToolContent }) {
   if (item.type === 'diff') {
     return (
       <div className="space-y-1">
-        <div className="font-mono text-[11px] text-muted-foreground">{item.path}</div>
+        <div className="font-mono text-xs">{item.path}</div>
         <DiffMessage oldString={item.oldText ?? ''} newString={item.newText} />
       </div>
     );
   }
 
   if (item.type === 'terminal') {
-    return (
-      <div className="font-mono text-[11px] text-muted-foreground">terminal {item.terminalId}</div>
-    );
+    return <p className="font-mono text-xs">terminal {item.terminalId}</p>;
   }
 
   const text = blockText(item);
-  if (text === null) return null;
-  return (
-    <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2 font-mono text-[11px]">
-      {text}
-    </pre>
-  );
+  if (!text) return null;
+  return <CodeOutput code={text} language="text" />;
 }
 
 /**
@@ -61,73 +72,51 @@ function commandOf(rawInput: unknown): string | null {
 }
 
 /**
- * One ACP tool call: a title + status row that expands into whatever the agent
- * attached — diffs, command output, or the raw input when there is no content.
+ * One ACP tool call as a trace line: shell calls open onto their command and
+ * output, others onto whatever the agent attached (diffs, text, raw input).
  */
 export function AcpToolCall({ entry }: { entry: ToolEntry }) {
-  const [open, setOpen] = useState(false);
   const content = entry.content ?? [];
+  const status = toolStatus(entry.status);
   const command = commandOf(entry.rawInput);
-  // The command is what a shell call is about, so it stays visible even once
-  // output arrives; the raw JSON is only the fallback for calls with neither.
+
+  if (command && content.every((item) => item.type === 'content')) {
+    const output = content
+      .map(blockText)
+      .filter((text): text is string => !!text)
+      .join('\n');
+    return <Terminal command={command} title={entry.title} status={status} output={output} />;
+  }
+
+  // The raw JSON is only the fallback for calls that attached nothing else.
   const rawInput =
-    content.length === 0 && !command && entry.rawInput
-      ? JSON.stringify(entry.rawInput, null, 2)
-      : null;
-  const expandable = content.length > 0 || rawInput !== null || command !== null;
+    content.length === 0 && entry.rawInput ? JSON.stringify(entry.rawInput, null, 2) : null;
+  const locations = entry.locations ?? [];
+  const hasDetails = content.length > 0 || rawInput !== null || locations.length > 0;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border">
-      <CollapsibleTrigger
-        disabled={!expandable}
-        className="flex w-full items-center gap-1 px-2 py-1 text-left text-xs disabled:cursor-default"
-      >
-        {expandable ? (
-          open ? (
-            <ChevronDown className="h-3 w-3 shrink-0" />
-          ) : (
-            <ChevronRight className="h-3 w-3 shrink-0" />
-          )
-        ) : (
-          <span className="w-3 shrink-0" />
-        )}
-        <span className="truncate font-mono">{entry.title}</span>
-        <Badge
-          variant="secondary"
-          className={`ml-auto shrink-0 ${STATUS_TONE[entry.status] ?? ''}`}
-        >
-          {entry.status}
-        </Badge>
-      </CollapsibleTrigger>
-
-      <CollapsibleContent className="space-y-2 border-t px-2 py-2">
-        {command && (
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2 font-mono text-[11px]">
-            $ {command}
-          </pre>
-        )}
-        {content.map((item, i) => (
-          <ToolContent
+    <Tool
+      icon={(entry.kind && KIND_ICON[entry.kind]) ?? <WrenchIcon />}
+      title={entry.title}
+      status={status}
+    >
+      {hasDetails ? (
+        <div className="flex flex-col gap-2">
+          {content.map((item, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: append-only content stream, no stable id
-            key={i}
-            item={item}
-          />
-        ))}
-        {rawInput && (
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2 font-mono text-[11px]">
-            {rawInput}
-          </pre>
-        )}
-        {entry.locations && entry.locations.length > 0 && (
-          <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-            {entry.locations.map((loc) => (
-              <span key={loc.line ? `${loc.path}:${loc.line}` : loc.path} className="font-mono">
-                {loc.line ? `${loc.path}:${loc.line}` : loc.path}
-              </span>
-            ))}
-          </div>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
+            <ToolContent key={i} item={item} />
+          ))}
+          {rawInput && <CodeOutput code={rawInput} language="json" />}
+          {locations.length > 0 && (
+            <div className="flex flex-wrap gap-2 font-mono text-xs">
+              {locations.map((loc) => {
+                const label = loc.line ? `${loc.path}:${loc.line}` : loc.path;
+                return <span key={label}>{label}</span>;
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </Tool>
   );
 }

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import '@/lib/i18n';
 import type { Bot } from '@/services/apiAdapt/bots';
 import { useAcpStore } from '@/stores/useAcpStore';
 
@@ -53,23 +54,22 @@ it('names the bot that asked for a delegated run', () => {
   expect(screen.getByText('Asked by Ada')).toBeTruthy();
 });
 
-it('collapses a thought to a Thinking marker, with the reasoning one click away', () => {
+it('folds a finished turn\'s thinking above the reply, with the reasoning one click away', () => {
   sections.mockReturnValue([
     {
       sessionId: 's3',
       entries: [
+        { id: 's3:u', role: 'user', text: 'Price?' },
         { id: 's3:t', role: 'thought', text: 'The user wants the price.' },
         { id: 's3:a', role: 'agent', text: 'Tea is $4.20.' },
       ],
     },
   ]);
   render(<BotMessageList bot={bot} />);
-  const marker = screen.getByText('Thinking');
-  const details = marker.closest('details');
-  expect(details?.open).toBe(false);
-  expect(details?.textContent).toContain('The user wants the price.');
-  fireEvent.click(marker);
-  expect(details?.open).toBe(true);
-  // The reply itself is never folded into the thought.
-  expect(screen.getByTestId('markdown').textContent).toBe('Tea is $4.20.');
+  expect(screen.queryByText('Thinking')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Worked in 1 step' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Thinking' }));
+  expect(screen.getByText('The user wants the price.')).toBeTruthy();
+  // The reply itself is never folded into the work summary.
+  expect(screen.getByText('Tea is $4.20.')).toBeTruthy();
 });
