@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rusqlite::params;
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 use super::get_connection;
@@ -25,6 +25,11 @@ pub struct AcpSessionRecord {
 /// list even before the first prompt. Re-recording an existing session (on
 /// resume) leaves `updated_at` alone, so merely opening a session does not
 /// move it to the top of the list.
+///
+/// Who a session belongs to — its agent and its bot — is settled when it is
+/// first recorded. A later open from another process must not move it: a
+/// project chat loaded on a bot's process would otherwise become the bot's,
+/// vanish from the project, and be pruned with the bot's untitled sessions.
 pub fn upsert_session(
     session_id: &str,
     agent_id: &str,
@@ -32,17 +37,25 @@ pub fn upsert_session(
     cwd: &str,
     bot_id: Option<&str>,
 ) -> Result<(), String> {
-    let conn = get_connection()?;
+    upsert_session_on(&get_connection()?, session_id, agent_id, agent_title, cwd, bot_id)
+}
+
+fn upsert_session_on(
+    conn: &Connection,
+    session_id: &str,
+    agent_id: &str,
+    agent_title: Option<&str>,
+    cwd: &str,
+    bot_id: Option<&str>,
+) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
         "INSERT INTO acp_sessions (
             session_id, agent_id, agent_title, cwd, bot_id, title, created_at, updated_at
         ) VALUES (?1, ?2, ?3, ?4, ?5, NULL, ?6, ?6)
         ON CONFLICT(session_id) DO UPDATE SET
-            agent_id = excluded.agent_id,
             agent_title = excluded.agent_title,
-            cwd = excluded.cwd,
-            bot_id = excluded.bot_id",
+            cwd = excluded.cwd",
         params![session_id, agent_id, agent_title, cwd, bot_id, now],
     )
     .map_err(|e| format!("Failed to upsert ACP session: {}", e))?;
@@ -207,4 +220,49 @@ pub fn delete_session(session_id: &str) -> Result<(), String> {
     )
     .map_err(|e| format!("Failed to delete ACP session: {}", e))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::conn::init_acp_sessions_tables(&conn).unwrap();
+        conn
+    }
+
+    fn owner(conn: &Connection, session_id: &str) -> Option<(String, Option<String>)> {
+        conn.query_row(
+            "SELECT agent_id, bot_id FROM acp_sessions WHERE session_id = ?1",
+            params![session_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok()
+    }
+
+    #[test]
+    fn a_bot_process_opening_a_project_chat_does_not_take_it_over() {
+        let conn = conn();
+        upsert_session_on(&conn, "chat", "keke", Some("Keke"), "/p", None).unwrap();
+        upsert_session_on(&conn, "empty", "keke", Some("Keke"), "/p", None).unwrap();
+
+        // Switching between them on the bot's process: each open used to make
+        // the session the bot's, and the next one pruned it as untitled.
+        upsert_session_on(&conn, "empty", "keke-bot-b1", Some("Brief"), "/p", Some("b1")).unwrap();
+        upsert_session_on(&conn, "chat", "keke-bot-b1", Some("Brief"), "/p", Some("b1")).unwrap();
+
+        assert_eq!(owner(&conn, "chat"), Some(("keke".to_string(), None)));
+        assert_eq!(owner(&conn, "empty"), Some(("keke".to_string(), None)));
+    }
+
+    #[test]
+    fn a_bot_still_prunes_its_own_untitled_sessions() {
+        let conn = conn();
+        upsert_session_on(&conn, "old", "keke-bot-b1", None, "/w", Some("b1")).unwrap();
+        upsert_session_on(&conn, "new", "keke-bot-b1", None, "/w", Some("b1")).unwrap();
+
+        assert_eq!(owner(&conn, "old"), None);
+        assert!(owner(&conn, "new").is_some());
+    }
 }

@@ -1,3 +1,4 @@
+import { detachBotConnection } from '@/components/acp/botConnection';
 import { useAcpAgents } from '@/components/acp/useAcpAgents';
 import { acpStop } from '@/services/apiAdapt/acp';
 import { useLayoutStore } from '@/stores';
@@ -29,7 +30,7 @@ function ensureProjectForAcp() {
 export function useAgentChoice() {
   const { selectedAgent, setSelectedAgent } = useAgentSettingsStore();
   const { setActiveSidebarTab } = useLayoutStore();
-  const { active, agentId, connectionId, setActive, setAgentId, reset } = useAcpStore();
+  const { active, agentId, setActive, setAgentId, reset } = useAcpStore();
   const acpAgents = useAcpAgents() ?? [];
 
   const options: AgentOption[] = [
@@ -58,7 +59,11 @@ export function useAgentChoice() {
       return;
     }
     ensureProjectForAcp();
-    if (active && agentId === option.id) return;
+    // A bot is a keke process too, so the pane may hold one under the same
+    // agent id; it must not carry on as this chat's agent.
+    const detached = detachBotConnection();
+    if (active && agentId === option.id && !detached) return;
+    const { connectionId } = useAcpStore.getState();
     if (connectionId && agentId !== option.id) {
       await acpStop(connectionId);
       reset();
