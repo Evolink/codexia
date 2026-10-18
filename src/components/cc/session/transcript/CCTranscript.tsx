@@ -1,36 +1,31 @@
-import { Fragment, type ReactNode, useMemo } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Streamdown } from 'streamdown';
 import { ChainOfThought } from '@/components/ai-elements/ChainOfThought';
 import { WorkSummary } from '@/components/ai-elements/WorkSummary';
 import { formatStepDuration } from '@/components/codex/items/stepItems';
-import { AddToTodo, CopyButton } from '@/components/common';
+import { MessageToolbar, UserMessage } from '@/components/common';
+import { MessageScrollerItem } from '@/components/ui/message-scroller';
 import { Trace } from '@/components/ui/trace';
-import type { CCMessage } from '../../types/messages';
 import { AskUserQuestionCard } from '../messages/tool-use/AskUserQuestionCard';
-import { UserMessage } from '../messages/UserMessage';
-import { buildCCTranscript, type CCRenderItem, type CCStep } from './buildCCTranscript';
+import type { CCRenderItem, CCStep } from './buildCCTranscript';
 import { CCToolStep } from './CCToolStep';
 import { isStepFailed } from './stepText';
 
 interface CCTranscriptProps {
-  messages: CCMessage[];
-  isLoading: boolean;
-  showThinking: boolean;
+  /** Built with `buildCCTranscript`. */
+  items: CCRenderItem[];
   /** Renders a message shown as-is (permission request, session init, rate limit). */
   renderMessage: (index: number) => ReactNode;
 }
 
 function CCAssistantText({ text }: { text: string }) {
   return (
-    <div className="group flex items-start gap-1">
-      <div className="invisible flex shrink-0 flex-col gap-0.5 pt-0.5 group-hover:visible">
-        <CopyButton text={text} className="h-4 w-4 text-muted-foreground" />
-        <AddToTodo text={text} className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <div className="min-w-0 flex-1 text-sm">
+    <div className="group flex min-w-0 flex-col items-start gap-1">
+      <div className="min-w-0 max-w-full text-sm">
         <Streamdown>{text}</Streamdown>
       </div>
+      <MessageToolbar text={text} />
     </div>
   );
 }
@@ -61,18 +56,10 @@ function CCStepChain({ steps, running }: { steps: CCStep[]; running: boolean }) 
 /**
  * The Claude Code transcript as trace lines: steps chain together, sub-agent work
  * nests under its call, and a finished turn folds its work above the final reply.
+ * Each top-level row is a scroller item; user messages anchor their turn.
  */
-export function CCTranscript({
-  messages,
-  isLoading,
-  showThinking,
-  renderMessage,
-}: CCTranscriptProps) {
+export function CCTranscript({ items, renderMessage }: CCTranscriptProps) {
   const { t } = useTranslation('thread');
-  const items = useMemo(
-    () => buildCCTranscript(messages, isLoading, { showThinking }),
-    [messages, isLoading, showThinking]
-  );
 
   const renderItem = (item: CCRenderItem): ReactNode => {
     switch (item.kind) {
@@ -116,5 +103,9 @@ export function CCTranscript({
     }
   };
 
-  return items.map((item) => <Fragment key={item.key}>{renderItem(item)}</Fragment>);
+  return items.map((item) => (
+    <MessageScrollerItem key={item.key} messageId={item.key} scrollAnchor={item.kind === 'user'}>
+      {renderItem(item)}
+    </MessageScrollerItem>
+  ));
 }

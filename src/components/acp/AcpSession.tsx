@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import { Streamdown } from 'streamdown';
+import { MessageToolbar, ThreadScroller, UserMessage } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { acpAuthenticate, acpNewSession, acpRespondPermission } from '@/services/apiAdapt/acp';
 import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
 import { AcpTranscript } from './AcpTranscript';
+import { acpUserTurns, buildAcpTranscript } from './transcript';
 
 export default function AcpSession() {
   const {
@@ -19,12 +21,8 @@ export default function AcpSession() {
     addEntry,
   } = useAcpStore();
   const cwd = useWorkspaceStore((s) => s.cwd);
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: entries.length is the trigger — scroll to the newest entry when one arrives
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [entries.length]);
+  const items = useMemo(() => buildAcpTranscript(entries, running), [entries, running]);
+  const turns = useMemo(() => acpUserTurns(items), [items]);
 
   const authenticate = async (methodId: string) => {
     if (!connectionId || !cwd) return;
@@ -46,7 +44,7 @@ export default function AcpSession() {
 
   return (
     <div className="flex flex-col min-h-0 h-full">
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 text-sm">
+      <ThreadScroller turns={turns} className="flex-1" contentClassName="p-3 text-sm">
         {!sessionId && authMethods.length > 0 && (
           <div className="rounded-md border p-3 space-y-2">
             <div className="text-xs text-muted-foreground">
@@ -63,18 +61,27 @@ export default function AcpSession() {
         )}
 
         <AcpTranscript
-          entries={entries}
-          running={running}
+          items={items}
           renderEntry={(entry) => {
-            if (entry.role === 'agent') return <Streamdown>{entry.text}</Streamdown>;
-            const tone = entry.role === 'user' ? 'bg-muted' : 'text-destructive';
+            if (entry.role === 'user') return <UserMessage text={entry.text} />;
+            if (entry.role === 'agent') {
+              return (
+                <div className="group flex min-w-0 flex-col items-start gap-1">
+                  <div className="min-w-0 max-w-full text-sm">
+                    <Streamdown>{entry.text}</Streamdown>
+                  </div>
+                  <MessageToolbar text={entry.text} />
+                </div>
+              );
+            }
             return (
-              <div className={`whitespace-pre-wrap rounded-md px-2 py-1 ${tone}`}>{entry.text}</div>
+              <div className="whitespace-pre-wrap rounded-md px-2 py-1 text-destructive">
+                {entry.text}
+              </div>
             );
           }}
         />
-        <div ref={bottomRef} />
-      </div>
+      </ThreadScroller>
 
       {permission && (
         <div className="shrink-0 border-t p-3 space-y-2">

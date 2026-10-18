@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 import { CCMessage } from '@/components/cc/session/messages';
 import { PermissionRequestCard } from '@/components/cc/session/messages/PermissionRequestCard';
+import { ThreadScroller } from '@/components/common';
 import { ccGetSessionMessages, ccResumeSession } from '@/services/apiAdapt/cc';
 import { useCCStore } from '@/stores/cc';
 import { useCCSettingsStore } from '@/stores/settings';
@@ -9,7 +10,7 @@ import { useCCPermissionListener, useCCSessionListener } from '../hooks';
 import type { PermissionRequestMessage } from '../types/messages';
 import type { PermissionDecision } from '../types/permission';
 import { fromSdkMessages } from '../utils/fromSdkMessages';
-import { CCScrollControls } from './CCScrollControls';
+import { buildCCTranscript, ccUserTurns } from './transcript/buildCCTranscript';
 import { CCTranscript } from './transcript/CCTranscript';
 
 interface CCSessionProps {
@@ -49,9 +50,11 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
   const enabledThinking = useCCSettingsStore((state) => state.enabledThinking);
   const isLoading = sessionId ? (sessionLoadingMap[sessionId] ?? false) : globalIsLoading;
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const shouldAutoScrollRef = useRef(true);
-  const isProgrammaticScrollRef = useRef(false);
+  const items = useMemo(
+    () => buildCCTranscript(messages, isLoading, { showThinking: enabledThinking }),
+    [messages, isLoading, enabledThinking]
+  );
+  const turns = useMemo(() => ccUserTurns(items), [items]);
 
   // Reset transient UI state when directory changes (standalone mode only).
   useEffect(() => {
@@ -94,35 +97,6 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
     })();
   }, [activeSessionId, isEmbedded]);
 
-  // Track user scroll intent.
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const onScroll = () => {
-      if (isProgrammaticScrollRef.current) return;
-      shouldAutoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, []);
-
-  // Smooth-scroll to bottom when messages update.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run on messages/isLoading updates to trigger auto-scroll, body only reads refs
-  useEffect(() => {
-    if (!shouldAutoScrollRef.current) return;
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    isProgrammaticScrollRef.current = true;
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    const timer = setTimeout(() => {
-      isProgrammaticScrollRef.current = false;
-      if (el) {
-        shouldAutoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [messages, isLoading]);
-
   const pendingPermissionIdx = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
@@ -150,39 +124,27 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
   useCCPermissionListener({ sessionId, disabled: disableListener });
 
   return (
-    <div className="flex flex-col h-full min-h-0 w-full max-w-4xl mx-auto">
-      {/* Scrollable content area */}
-      <div className="flex-1 min-h-0 overflow-hidden relative">
-        <div
-          ref={scrollContainerRef}
-          className="h-full overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:display-none"
-        >
-          <div className="thread-surface flex flex-col gap-2 p-4">
-            {/* Message list */}
-            <CCTranscript
-              messages={messages}
-              isLoading={isLoading}
-              showThinking={enabledThinking}
-              renderMessage={(index) => <CCMessage message={messages[index]} index={index} />}
-            />
-
-            {/* Loading indicator */}
-            {isLoading && (
-              <div className="text-xs text-muted-foreground animate-pulse">Thinking</div>
-            )}
-          </div>
-        </div>
-
-        {!isEmbedded && messages.length > 0 && (
-          <CCScrollControls scrollContainerRef={scrollContainerRef} />
-        )}
-      </div>
+    <div className="flex flex-col h-full min-h-0 w-full">
+      <ThreadScroller
+        turns={turns}
+        jumpButton={!isEmbedded}
+        className="flex-1"
+        contentClassName="thread-surface"
+      >
+        <CCTranscript
+          items={items}
+          renderMessage={(index) => <CCMessage message={messages[index]} index={index} />}
+        />
+        {isLoading && <div className="text-xs text-muted-foreground animate-pulse">Thinking</div>}
+      </ThreadScroller>
 
       {pendingPermissionIdx !== -1 && (
-        <PermissionRequestCard
-          msg={messages[pendingPermissionIdx] as PermissionRequestMessage}
-          onResolve={handleResolvePermission}
-        />
+        <div className="mx-auto w-full max-w-4xl">
+          <PermissionRequestCard
+            msg={messages[pendingPermissionIdx] as PermissionRequestMessage}
+            onResolve={handleResolvePermission}
+          />
+        </div>
       )}
     </div>
   );

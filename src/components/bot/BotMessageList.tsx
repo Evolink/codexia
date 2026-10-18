@@ -1,6 +1,7 @@
 import { Bot as BotIcon, CircleCheck, Clock, Send, Zap } from 'lucide-react';
-import { useEffect, useRef } from 'react';
 import { AcpTranscript } from '@/components/acp/AcpTranscript';
+import { acpUserTurns, buildAcpTranscript } from '@/components/acp/transcript';
+import { ThreadScroller } from '@/components/common';
 import { Markdown } from '@/components/Markdown';
 import { Button } from '@/components/ui/button';
 import type { Bot } from '@/services/apiAdapt/bots';
@@ -28,15 +29,11 @@ export function BotMessageList({ bot }: { bot: Bot }) {
   // line already says the bot is working.
   const lastRole = entries[entries.length - 1]?.role;
   const stepping = running && (lastRole === 'thought' || lastRole === 'tool');
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the count is the trigger, not a value the effect reads
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [entries.length]);
+  const items = buildAcpTranscript(entries, running);
+  const turns = acpUserTurns(items);
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2 text-sm">
+    <ThreadScroller turns={turns} className="flex-1" contentClassName="px-4 py-3 text-sm">
       {error && (
         <div role="alert" className="flex items-center gap-2 text-xs text-destructive">
           {error}
@@ -55,8 +52,7 @@ export function BotMessageList({ bot }: { bot: Bot }) {
       )}
 
       <AcpTranscript
-        entries={entries}
-        running={running}
+        items={items}
         stepsClassName="pl-9 max-w-[85%]"
         renderEntry={(entry) => {
           if (entry.role === 'user' && entry.trigger) {
@@ -94,9 +90,7 @@ export function BotMessageList({ bot }: { bot: Bot }) {
           {connecting ? `Waking ${bot.name}…` : 'Typing…'}
         </div>
       )}
-
-      <div ref={bottomRef} />
-    </div>
+    </ThreadScroller>
   );
 }
 

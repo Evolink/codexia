@@ -2,5 +2,8 @@ export * from './AddToTodo';
 export * from './AgentWorkspaceSelect';
 export * from './CopyButton';
 export * from './FileMentionPopover';
+export * from './MessageToolbar';
+export * from './ThreadScroller';
+export * from './UserMessage';
 export * from './useComposerPopover';
 export * from './WorkspaceSwitcher';
