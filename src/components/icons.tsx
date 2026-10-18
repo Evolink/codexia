@@ -3,7 +3,6 @@ import ClaudeCodeIcon from '@/assets/claudecode-color.svg';
 import CodexIcon from '@/assets/codex-color.svg';
 import GeminiIcon from '@/assets/gemini-color.svg';
 import GithubIcon from '@/assets/github.svg';
-import KekeIcon from '@/assets/keke/keke.webp';
 import MCPIcon from '@/assets/mcp.svg';
 import MiniMaxIcon from '@/assets/minimax-color.svg';
 import NvidiaIcon from '@/assets/nvidia-color.svg';
@@ -69,13 +68,77 @@ export function Codex({ size = 'md', className = '' }: BaseIconProps) {
   return <img src={CodexIcon} alt="codex" className={cn(getSizeClass(size), className)} />;
 }
 
+/** Keke as inline SVG so its parts can animate on hover (see `.keke-svg` in App.css). */
 export function Keke({ size = 'md', className = '' }: BaseIconProps) {
   return (
-    <img
-      src={KekeIcon}
-      alt="keke"
-      className={cn(getSizeClass(size), 'rounded-sm object-cover', className)}
-    />
+    <svg
+      viewBox="40 30 400 470"
+      role="img"
+      aria-label="keke"
+      className={cn('keke-svg', getSizeClass(size), className)}
+    >
+      <defs>
+        <radialGradient id="keke-body" cx="0.4" cy="0.3" r="0.8">
+          <stop offset="0" stopColor="#e6dfd2" />
+          <stop offset="1" stopColor="#c9c0b0" />
+        </radialGradient>
+      </defs>
+      <g className="keke-feet">
+        <ellipse cx="192" cy="455" rx="40" ry="22" fill="#7d9aa3" />
+        <ellipse cx="297" cy="447" rx="40" ry="22" fill="#7d9aa3" />
+      </g>
+      <g className="keke-body">
+        <g className="keke-antenna-l">
+          <line
+            x1="195"
+            y1="165"
+            x2="175"
+            y2="80"
+            stroke="#6b7f86"
+            strokeWidth="9"
+            strokeLinecap="round"
+          />
+          <circle cx="174" cy="76" r="22" fill="#5f8f9c" />
+        </g>
+        <g className="keke-antenna-r">
+          <line
+            x1="285"
+            y1="160"
+            x2="309"
+            y2="76"
+            stroke="#6b7f86"
+            strokeWidth="9"
+            strokeLinecap="round"
+          />
+          <circle cx="308" cy="72" r="22" fill="#e5896a" />
+        </g>
+        <path
+          d="M205 152 L282 150 L345 205 L385 290 L372 380 L318 440 L245 462 L170 445 L112 385 L100 290 L135 205 Z"
+          fill="url(#keke-body)"
+          strokeLinejoin="round"
+          stroke="#cfc6b6"
+          strokeWidth="14"
+        />
+        <ellipse cx="165" cy="365" rx="20" ry="24" fill="#e6dfd2" />
+        <ellipse cx="395" cy="352" rx="26" ry="32" fill="#e6dfd2" />
+        <ellipse cx="362" cy="326" rx="14" ry="10" fill="#f0a5a0" />
+        <line
+          x1="212"
+          y1="332"
+          x2="172"
+          y2="362"
+          stroke="#2f6b78"
+          strokeWidth="14"
+          strokeLinecap="round"
+        />
+        <circle cx="243" cy="283" r="38" fill="#f4f1ea" />
+        <circle className="keke-pupil" cx="238" cy="290" r="22" fill="#2b2b33" />
+        <circle className="keke-pupil" cx="231" cy="282" r="6" fill="#fff" />
+        <circle cx="243" cy="283" r="45" fill="none" stroke="#2f6b78" strokeWidth="16" />
+        <ellipse className="keke-eye" cx="321" cy="285" rx="15" ry="20" fill="#2b2b33" />
+        <ellipse cx="295" cy="350" rx="17" ry="11" fill="#a8504a" />
+      </g>
+    </svg>
   );
 }
 

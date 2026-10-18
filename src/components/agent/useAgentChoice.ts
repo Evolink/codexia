@@ -35,12 +35,15 @@ export function useAgentChoice() {
 
   const options: AgentOption[] = [
     ...BUILTIN_AGENTS,
-    ...acpAgents.map((a) => ({
-      kind: 'acp' as const,
-      id: a.id,
-      name: a.name,
-      available: a.available,
-    })),
+    ...acpAgents
+      .map((a) => ({
+        kind: 'acp' as const,
+        id: a.id,
+        name: a.name,
+        available: a.available,
+      }))
+      // Keke is the house agent: always first among the ACP agents.
+      .sort((a, b) => Number(b.id === 'keke') - Number(a.id === 'keke')),
   ];
 
   const isCurrent = (option: AgentOption) =>
