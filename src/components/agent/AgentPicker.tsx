@@ -46,7 +46,7 @@ export function AgentPicker({ className }: { className?: string }) {
               orientation="vertical"
               className="mx-1 self-center data-[orientation=vertical]:h-6"
             />
-            <div role="group" aria-label="ACP agent" className="flex">
+            <fieldset aria-label="ACP agent" className="m-0 flex min-w-0 border-0 p-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -89,7 +89,7 @@ export function AgentPicker({ className }: { className?: string }) {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            </fieldset>
           </>
         )}
       </div>
