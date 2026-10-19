@@ -1,4 +1,4 @@
-import { BookOpen, CircleDashed, Globe, Hash, Layers, Plug, Search } from 'lucide-react';
+import { BookOpen, CircleDashed, Compass, Globe, Hash, Layers, Plug, Search } from 'lucide-react';
 import githubIcon from '@/assets/github.svg';
 
 const icons = {
@@ -8,6 +8,7 @@ const icons = {
   deepwiki: BookOpen,
   'you-search': Search,
   'parallel-search': Layers,
+  'keenable-search': Compass,
 };
 
 export function ConnectorIcon({ name }: { name: string }) {

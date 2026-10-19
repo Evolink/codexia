@@ -86,6 +86,13 @@ export const appPresets: {
     config: { type: 'http', url: 'https://search.parallel.ai/mcp' },
   },
   {
+    name: 'keenable-search',
+    label: 'Keenable',
+    description: 'Web search and page fetch',
+    access: 'No account required',
+    config: { type: 'http', url: 'https://api.keenable.ai/mcp?keenable_title=codexia' },
+  },
+  {
     name: 'fxmacrodata',
     label: 'FXMacroData',
     description: 'Macroeconomic releases, economic calendar and FX data',
