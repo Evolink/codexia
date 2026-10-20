@@ -7,6 +7,17 @@ import addFormats from 'ajv-formats';
 
 const root = join(import.meta.dirname, '../registry');
 const SCHEMA_URL = 'https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json';
+const ICON_BASE = 'https://cdn.jsdelivr.net/gh/milisp/codexia@master/registry/icons/';
+const MAX_ICON_BYTES = 32 * 1024;
+const UNSAFE_SVG = [
+  [/<script\b/i, '<script>'],
+  [/<foreignObject\b/i, '<foreignObject>'],
+  [/<(image|use|feImage)\b[^>]*\bhref\s*=\s*["']?(?!#)/i, 'an external reference'],
+  [/\son[a-z]+\s*=/i, 'an event handler attribute'],
+  [/javascript:/i, 'a javascript: URL'],
+  [/url\(\s*["']?(?!#)/i, 'an external url()'],
+  [/<!ENTITY|<!DOCTYPE/i, 'a DTD or entity'],
+];
 const META_KEY = 'io.github.milisp.codexia';
 const PUBLISHER_KEY = 'io.modelcontextprotocol.registry/publisher-provided';
 
@@ -19,6 +30,7 @@ const validateSchema = ajv.compile(readJson('schema/server.schema.json'));
 const index = readJson('index.json');
 const categories = new Set(index.categories);
 const files = readdirSync(join(root, 'servers')).filter((f) => f.endsWith('.json'));
+const icons = readdirSync(join(root, 'icons')).filter((f) => f.endsWith('.svg'));
 const errors = [];
 const fail = (where, message) => errors.push(`${where}: ${message}`);
 
@@ -68,6 +80,15 @@ for (const file of files) {
     }
   }
 
+  // Icons are optional. When present they are hosted here, never hotlinked.
+  if (server.icons) {
+    const iconSrc = `${ICON_BASE}${id}.svg`;
+    if (server.icons.length !== 1 || server.icons[0].src !== iconSrc) {
+      fail(where, `icons must be [{ "src": "${iconSrc}", "mimeType": "image/svg+xml", "sizes": ["any"] }]`);
+    }
+    if (!icons.includes(`${id}.svg`)) fail(where, `missing icons/${id}.svg`);
+  }
+
   const meta = server._meta?.[PUBLISHER_KEY]?.[META_KEY];
   if (!meta) {
     fail(where, `missing _meta["${PUBLISHER_KEY}"]["${META_KEY}"]`);
@@ -78,6 +99,19 @@ for (const file of files) {
     fail(where, `category "${meta.category}" is not one of index.json categories`);
   }
   if (typeof meta.official !== 'boolean') fail(where, 'official must be true or false');
+}
+
+// SVGs can carry script, so only plain vector markup is accepted.
+for (const file of icons) {
+  const where = `icons/${file}`;
+  const svg = readFileSync(join(root, 'icons', file), 'utf8');
+  if (!listed.has(file.slice(0, -4))) fail(where, 'has no matching server');
+  if (Buffer.byteLength(svg) > MAX_ICON_BYTES) fail(where, `larger than ${MAX_ICON_BYTES / 1024} KB`);
+  if (!/^\s*<svg\b[^>]*\bviewBox=/.test(svg)) fail(where, 'must start with <svg> and have a viewBox');
+  if (/<svg\b[^>]*\s(width|height)=/.test(svg)) fail(where, 'root <svg> must not set width or height');
+  for (const [pattern, label] of UNSAFE_SVG) {
+    if (pattern.test(svg)) fail(where, `contains ${label}`);
+  }
 }
 
 if (errors.length) {

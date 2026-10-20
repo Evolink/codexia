@@ -4,6 +4,15 @@
   "title": "GitHub",
   "description": "Repositories, issues and pull requests",
   "version": "1.0.0",
+  "icons": [
+    {
+      "src": "https://cdn.jsdelivr.net/gh/milisp/codexia@master/registry/icons/github.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",

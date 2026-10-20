@@ -9,6 +9,7 @@ file each. The connectors page shows **Featured** first, then the rest grouped b
 ```
 index.json         display order and categories
 servers/<id>.json  one server
+icons/<id>.svg     its icon, optional
 schema/            vendored server.json schema
 ```
 
@@ -29,9 +30,11 @@ schema/            vendored server.json schema
    | `authorizationRequired` | `true` if the user must sign in after adding |
 
    Never commit a real token; secret headers need `isSecret: true` and no value.
-4. Append `<id>` to `servers` in `index.json`.
-5. Run `bun run validate-registry`.
-6. Open a pull request. Say why it fits Codexia, what users see after clicking **Add**,
+4. Optionally add `icons/<id>.svg` (plain vector with a `viewBox`, brand color in `fill`, at most 32 KB) and set `icons` to
+   `[{ "src": "https://cdn.jsdelivr.net/gh/milisp/codexia@master/registry/icons/<id>.svg", "mimeType": "image/svg+xml", "sizes": ["any"] }]`.
+5. Append `<id>` to `servers` in `index.json`.
+6. Run `bun run validate-registry`.
+7. Open a pull request. Say why it fits Codexia, what users see after clicking **Add**,
    what data is sent to your service, and your affiliation with it. Pull requests
    without this are not reviewed.
 

@@ -4,6 +4,15 @@
   "title": "Cohesivity",
   "description": "Postgres, hosting and storage for your apps, no account needed",
   "version": "1.0.0",
+  "icons": [
+    {
+      "src": "https://cdn.jsdelivr.net/gh/milisp/codexia@master/registry/icons/cohesivity.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",
