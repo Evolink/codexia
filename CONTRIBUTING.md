@@ -62,6 +62,10 @@ cd src-tauri && cargo check
 5. Push your branch: `git push origin feature/amazing-feature`.
 6. Open a Pull Request and describe your changes, rationale, and testing steps.
 
+## Listing an MCP server
+
+Connectors are maintainer-picked. To propose one, follow [`registry/README.md`](registry/README.md).
+
 ## Reporting Bugs and Requesting Features
 
 - Use GitHub Issues for bug reports and feature requests.
