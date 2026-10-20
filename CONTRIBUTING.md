@@ -66,6 +66,11 @@ cd src-tauri && cargo check
 
 Connectors are maintainer-picked. To propose one, follow [`registry/README.md`](registry/README.md).
 
+Listing is free. Reviews happen when a maintainer has time, there is no deadline, and an
+open pull request is not a rejection. Sponsoring does not guarantee a listing or a
+**Featured** slot. For featured placement or a joint announcement, contact the maintainer
+at [milisp@proton.me](mailto:milisp@proton.me) before opening a pull request.
+
 ## Reporting Bugs and Requesting Features
 
 - Use GitHub Issues for bug reports and feature requests.

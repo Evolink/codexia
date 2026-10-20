@@ -39,4 +39,4 @@ schema/            vendored server.json schema
    without this are not reviewed.
 
 Listing is free and reviewed when a maintainer has time. For featured placement or a
-joint announcement, contact the maintainer on [Discord](https://discord.gg/zAjtD4kf5K) first.
+joint announcement, contact the maintainer at [milisp@proton.me](mailto:milisp@proton.me) first.
