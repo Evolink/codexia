@@ -62,6 +62,32 @@ cd src-tauri && cargo check
 5. Push your branch: `git push origin feature/amazing-feature`.
 6. Open a Pull Request and describe your changes, rationale, and testing steps.
 
+## Listing an MCP server
+
+Codexia's connector list is maintainer-picked. Each connector is one
+[`server.json`](https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json)
+file in `registry/servers/`, in the same format as the
+[MCP Linker directory](https://github.com/milisp/mcp-linker/blob/main/registry/README.md).
+The UI shows **Featured** first, then the rest grouped by category.
+
+- **A server for any MCP client**: submit it to the MCP Linker directory, which has the
+  schema, icons, validation and review criteria. Codexia does not need a separate entry.
+- **A server built for Codexia** (agents, bots, its authorization flow): open a pull
+  request here.
+  1. Add `servers/<id>.json` (copy an existing one) and append `<id>` to `servers` in
+     `registry/index.json`. `category` must be one of its `categories`.
+  2. Run `bun run validate-registry`. It checks the file against the `server.json` schema
+     and the catalog rules.
+  3. Leave `featured` out. Maintainers choose Featured, and a pull request does not put
+     a server there.
+  4. In the description, explain why it fits Codexia and what users see after clicking
+     **Add**. State what data is sent to your service and disclose your affiliation with it.
+
+Pull requests without that description are not reviewed. Listing is free. Reviews happen
+when a maintainer has time, there is no deadline, and an open pull request is not a
+rejection. For featured placement or a joint announcement, contact the maintainer on
+[Discord](https://discord.gg/zAjtD4kf5K) first.
+
 ## Reporting Bugs and Requesting Features
 
 - Use GitHub Issues for bug reports and feature requests.

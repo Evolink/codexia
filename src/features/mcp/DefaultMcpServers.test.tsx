@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const addKeke = vi.fn().mockResolvedValue(undefined);
 const login = vi.fn();
@@ -13,15 +13,13 @@ vi.mock('@/services', () => ({ unifiedAddMcpServer: (...args: unknown[]) => addU
 import { DefaultMcpServers } from './DefaultMcpServers';
 beforeEach(() => { vi.clearAllMocks(); servers.mockResolvedValue({}); login.mockResolvedValue(undefined); tokenAuth.mockResolvedValue(undefined); googleToken.mockResolvedValue(undefined); oauthClient.mockResolvedValue(undefined); statuses.mockResolvedValue({linear:{signedIn:false,error:null},github:{signedIn:false,error:null}}); });
 describe('featured connector targets', () => {
-  it('keeps FXMacroData outside Featured and adds it from Finance & economics', async () => {
+  it('lists FXMacroData under its category, below Featured', async () => {
     const added = vi.fn();
     render(<DefaultMcpServers agent="keke" servers={{}} onServerAdded={added} />);
-    expect(screen.queryByRole('button', { name: 'Add FXMacroData' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'All connectors' }));
-    expect(screen.getByRole('button', { name: 'Add FXMacroData' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Finance & economics' }));
-    expect(screen.queryByRole('button', { name: 'Add GitHub' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Add FXMacroData' }));
+    const featured = screen.getByRole('region', { name: 'Featured' });
+    expect(within(featured).queryByRole('button', { name: 'Add FXMacroData' })).toBeNull();
+    const analytics = screen.getByRole('region', { name: 'Analytics' });
+    fireEvent.click(within(analytics).getByRole('button', { name: 'Add FXMacroData' }));
     await waitFor(() => expect(added).toHaveBeenCalledOnce());
     expect(addKeke).toHaveBeenCalledWith('fxmacrodata', { type: 'http', url: 'https://mcp.fxmacrodata.com' });
     expect(login).not.toHaveBeenCalled();
