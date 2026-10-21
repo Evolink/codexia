@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import {
+  Bot,
   Diff,
   Files,
   Globe,
@@ -10,6 +12,8 @@ import {
   SquareTerminal,
   X,
 } from 'lucide-react';
+import { collectSubagents } from '@/components/codex/items/subagents';
+import { useCodexStore } from '@/components/codex/stores';
 import { NewAgentButton } from '@/components/common/NewAgentButton';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,6 +40,7 @@ interface TabConfig {
 // Order tabs the way users scan them: work-in-progress first, reference last.
 const TAB_BUTTONS: TabConfig[] = [
   { tab: 'diff', icon: Diff, label: 'Review' },
+  { tab: 'agents', icon: Bot, label: 'Agents' },
   { tab: 'todo', icon: ListTodo, label: 'Todos' },
   { tab: 'terminal', icon: SquareTerminal, label: 'Terminal' },
   { tab: 'webpreview', icon: Globe, label: 'Browser' },
@@ -58,6 +63,13 @@ export function RightPanelHeader() {
   } = useLayoutStore();
   const { needsTrafficLightOffset } = useTrafficLightConfig(isSidebarOpen);
   const todos = useTodoStore((state) => state.todos);
+  const threadEvents = useCodexStore((s) =>
+    s.currentThreadId ? s.events[s.currentThreadId] : undefined
+  );
+  const runningSubagents = useMemo(
+    () => collectSubagents(threadEvents ?? []).filter((a) => a.status === 'running').length,
+    [threadEvents]
+  );
 
   const openTab = (tab: RightPanelTab) => {
     setActiveRightPanelTab(tab);
@@ -143,6 +155,11 @@ export function RightPanelHeader() {
               >
                 <Icon className="size-4" />
                 <span className="text-xs hidden lg:block">{config.label}</span>
+                {tab === 'agents' && runningSubagents > 0 && activeRightPanelTab !== tab && (
+                  <span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 text-primary-foreground">
+                    {runningSubagents}
+                  </span>
+                )}
                 {tab === 'todo' && openTodoCount > 0 && activeRightPanelTab !== tab && (
                   <span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 text-primary-foreground">
                     {openTodoCount}
