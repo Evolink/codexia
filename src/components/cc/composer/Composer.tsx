@@ -11,6 +11,7 @@ import { ccInterrupt, ccSendMessage } from '@/services';
 import { useAgentCenterStore, useCCInputStore } from '@/stores';
 import { useCCStore } from '@/stores/cc';
 import { CCAttachmentButton } from './CCAttachmentButton';
+import { CCMcpStatus } from './CCMcpStatus';
 import { CCSkillsPopover } from './CCSkillsPopover';
 import { CCSlashCommandPopover } from './CCSlashCommandPopover';
 
@@ -201,6 +202,7 @@ export function Composer({ overrideSend, onAfterSend }: ComposerProps = {}) {
               onImagesSelected={(paths) => setImages((prev) => [...prev, ...paths])}
             />
             <CCPermissionModeSelect />
+            <CCMcpStatus sessionId={activeSessionId} />
           </div>
 
           <div className="absolute right-1 bottom-1 flex items-center gap-1.5 px-1 bg-background/50 backdrop-blur-sm rounded-md">

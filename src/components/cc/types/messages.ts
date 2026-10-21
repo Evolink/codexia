@@ -69,7 +69,10 @@ export interface SystemMessage {
   cwd?: string;
   session_id?: string;
   tools?: string[];
-  mcp_servers?: Array<Record<string, unknown>>;
+  /** Init-time snapshot; servers still connecting report `pending` */
+  mcp_servers?: Array<{ name: string; status: string; source?: string }>;
+  /** Plugins that failed to load (init only) */
+  plugin_errors?: Array<{ plugin: string; type: string; message: string; path?: string }>;
   model?: string;
   permissionMode?: string;
   uuid?: string;

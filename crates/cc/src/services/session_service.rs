@@ -307,6 +307,17 @@ pub async fn interrupt(session_id: &str, state: &CCState) -> Result<(), String> 
     client.interrupt().await.map_err(|e| e.to_string())
 }
 
+/// Live MCP server status of a connected session, with failure reasons. The init
+/// message only has a snapshot taken while servers may still be connecting.
+pub async fn mcp_status(
+    session_id: &str,
+    state: &CCState,
+) -> Result<claude_agent_sdk_rs::types::mcp::McpStatusResponse, String> {
+    let client = state.get_client(session_id).await.ok_or("Client not found")?;
+    let client = client.read().await;
+    client.get_mcp_status().await.map_err(|e| e.to_string())
+}
+
 pub async fn resume_session(
     session_id: String,
     options: AgentOptions,
