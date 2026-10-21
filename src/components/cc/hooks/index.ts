@@ -24,44 +24,50 @@ interface CCListenerOptions {
  * Signals `useCCSessionManager` that this session's listener is bound.
  * Only standalone listeners signal; embedded ones are not what it waits for.
  */
-function dispatchReady(eventName: string | null, sessionId: string, embedded: boolean) {
-  if (embedded || !eventName) return;
+function dispatchReady(eventName: string, sessionId: string, embedded: boolean) {
+  if (embedded) return;
   window.dispatchEvent(new CustomEvent(eventName, { detail: { sessionId } }));
 }
 
 /**
- * Subscribes to a backend event, over Tauri IPC on desktop and SSE elsewhere,
- * and signals `readyEvent` (when given) once the subscription is live.
+ * Subscribes to backend events, over Tauri IPC on desktop and SSE elsewhere,
+ * and signals readiness once the subscription is live. On the web all events
+ * share one stream: each stream holds an HTTP connection, and the browser
+ * queues every request beyond its per-host limit.
  * Returns the effect cleanup that tears the subscription down.
  */
-function subscribe<T>(
-  event: string,
-  readyEvent: string | null,
+function subscribe(
+  handlers: Record<string, (payload: unknown) => void>,
+  readyEvent: string,
   sessionId: string,
-  embedded: boolean,
-  onPayload: (payload: T) => void
+  embedded: boolean
 ): () => void {
+  const events = Object.keys(handlers);
   if (isDesktopTauri()) {
-    const unlistenPromise = listen<T>(event, (e) => onPayload(e.payload));
-    void unlistenPromise.then(() => dispatchReady(readyEvent, sessionId, embedded));
+    const unlistenPromises = events.map((event) =>
+      listen(event, (e) => handlers[event](e.payload))
+    );
+    void Promise.all(unlistenPromises).then(() => dispatchReady(readyEvent, sessionId, embedded));
     return () => {
-      void unlistenPromise.then((fn) => fn());
+      for (const unlistenPromise of unlistenPromises) void unlistenPromise.then((fn) => fn());
     };
   }
 
   const closeStream = openEventStream({
-    label: `[CCSession/${event}]`,
-    onEvent: (envelope) => {
-      if (envelope.event === event) onPayload(envelope.payload as T);
-    },
+    label: `[CCSession/${events.join(',')}]`,
+    onEvent: (envelope) => handlers[envelope.event]?.(envelope.payload),
   });
   dispatchReady(readyEvent, sessionId, embedded);
   return closeStream;
 }
 
+type RenamePayload = { sessionId: string; newSessionId: string };
+
 /**
  * Hook to listen for message stream events from the Tauri backend.
  * Supports both standalone (global active session) and embedded (per-session) modes.
+ * Also follows the session to the id the CLI continues under after `/clear`; the
+ * backend emits that after the turn's result, so no message is lost while ids switch.
  */
 export function useCCSessionListener({ disabled = false, sessionId }: CCListenerOptions = {}) {
   const activeSessionId = useCCStore((s) => s.activeSessionId);
@@ -91,44 +97,22 @@ export function useCCSessionListener({ disabled = false, sessionId }: CCListener
       addMessage(message);
     };
 
-    return subscribe<CCMessage>(
-      'cc-message',
+    const handleRename = ({ sessionId: from, newSessionId: to }: RenamePayload) => {
+      if (from !== targetSessionId) return;
+      useCCStore.getState().renameSession(from, to);
+      useAgentCenterStore.getState().renameCard('cc', from, to);
+    };
+
+    return subscribe(
+      {
+        'cc-message': (payload) => handleMessage(payload as CCMessage),
+        'cc-session-renamed': (payload) => handleRename(payload as RenamePayload),
+      },
       CC_LISTENER_READY_EVENT,
       targetSessionId,
-      Boolean(sessionId),
-      handleMessage
+      Boolean(sessionId)
     );
   }, [disabled, targetSessionId, sessionId, addMessage, addMessageToSession, setSlashCommands]);
-}
-
-type RenamePayload = { sessionId: string; newSessionId: string };
-
-/**
- * Follows a session to the id the CLI continues under after `/clear`. The backend
- * emits this after the turn's result, so no message is lost while ids switch.
- */
-export function useCCSessionRenameListener({
-  disabled = false,
-  sessionId,
-}: CCListenerOptions = {}) {
-  const activeSessionId = useCCStore((s) => s.activeSessionId);
-  const targetSessionId = sessionId ?? activeSessionId;
-
-  useEffect(() => {
-    if (disabled || !targetSessionId) return;
-
-    return subscribe<RenamePayload>(
-      'cc-session-renamed',
-      null,
-      targetSessionId,
-      Boolean(sessionId),
-      ({ sessionId: from, newSessionId: to }) => {
-        if (from !== targetSessionId) return;
-        useCCStore.getState().renameSession(from, to);
-        useAgentCenterStore.getState().renameCard('cc', from, to);
-      }
-    );
-  }, [disabled, targetSessionId, sessionId]);
 }
 
 type PermPayload = {
@@ -188,12 +172,11 @@ export function useCCPermissionListener({ disabled = false, sessionId }: CCListe
       }
     };
 
-    return subscribe<PermPayload>(
-      'cc-permission-request',
+    return subscribe(
+      { 'cc-permission-request': (payload) => handlePermission(payload as PermPayload) },
       CC_PERMISSION_LISTENER_READY_EVENT,
       targetSessionId,
-      Boolean(sessionId),
-      handlePermission
+      Boolean(sessionId)
     );
   }, [disabled, targetSessionId, sessionId, addMessage, addMessageToSession]);
 }

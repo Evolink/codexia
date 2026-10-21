@@ -53,6 +53,8 @@ interface Context {
   results: Map<string, ToolResultBlock>;
   children: Map<string, CCMessage[]>;
   prompts: Map<CCMessage, { index: number; forkAt: string | null }>;
+  /** Each message's index in the session, which `message` items refer to. */
+  indices: Map<CCMessage, number>;
   /** Whether a call without a result may still be running. */
   live: boolean;
   showThinking: boolean;
@@ -101,8 +103,9 @@ function unitsOf(
   const units: Unit[] = [];
   let result: ResultMessage | null = null;
   messages.forEach((msg, index) => {
-    const key =
-      msg.type === 'assistant' || msg.type === 'user' ? (msg.uuid ?? `${index}`) : `${index}`;
+    // Index in the session, not the turn: keys and `message` items span turns.
+    const at = ctx.indices.get(msg) ?? index;
+    const key = msg.type === 'assistant' || msg.type === 'user' ? (msg.uuid ?? `${at}`) : `${at}`;
     switch (msg.type) {
       case 'user':
         if (msg.text) {
@@ -142,9 +145,10 @@ function unitsOf(
         return;
       case 'permission_request':
       case 'system':
-      case 'rate_limit_event':
-        units.push({ kind: 'message', key: `message-${index}`, index });
+      case 'rate_limit_event': {
+        units.push({ kind: 'message', key: `message-${at}`, index: at });
         return;
+      }
       default:
         return;
     }
@@ -206,7 +210,9 @@ export function buildCCTranscript(
   // main-conversation entry before it.
   const prompts = new Map<CCMessage, { index: number; forkAt: string | null }>();
   let lastUuid: string | null = null;
+  const indices = new Map<CCMessage, number>();
   messages.forEach((msg, index) => {
+    indices.set(msg, index);
     const parent =
       msg.type === 'user' || msg.type === 'assistant' ? msg.parent_tool_use_id : undefined;
     if (parent && toolIds.has(parent)) {
@@ -234,6 +240,7 @@ export function buildCCTranscript(
       results,
       children,
       prompts,
+      indices,
       live,
       showThinking,
     });
