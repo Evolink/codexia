@@ -8,7 +8,7 @@ dev-web:
   @echo "API base and WS route (/ws) both use backend port :{{backend_port}}"
   @echo "Opening Vite frontend; API and WebSocket requests are proxied to :{{backend_port}}"
   @trap 'kill 0' EXIT INT TERM; \
-    (CODEXIA_NO_BROWSER=1 VITE_WEB_PORT={{backend_port}} cargo watch -w crates -w Cargo.toml -x 'run --bin codexia-web -- --port {{backend_port}}') & \
+    (CODEXIA_NO_BROWSER=1 VITE_WEB_PORT={{backend_port}} cargo watch -w crates -w web -w Cargo.toml -x 'run --bin codexia-web -- --port {{backend_port}}') & \
     echo "Waiting for backend http://localhost:{{backend_port}}/health..."; \
     until curl -sf http://localhost:{{backend_port}}/health >/dev/null; do sleep 0.2; done; \
     echo "Backend is ready"; \

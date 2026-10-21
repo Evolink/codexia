@@ -1,2 +1,2 @@
 export { CCMessage } from './CCMessage';
-export { PermissionRequestCard } from './PermissionRequestCard';
+export { PermissionRequestCard, ResolvedPermissionRow } from './PermissionRequestCard';

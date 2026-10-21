@@ -1,10 +1,12 @@
+import { cn } from 'cn';
 import { useMemo } from 'react';
 import { Streamdown } from 'streamdown';
-import { MessageToolbar, ThreadScroller, UserMessage } from '@/components/common';
+import { MessageToolbar, THREAD_COLUMN, ThreadScroller, UserMessage } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { acpAuthenticate, acpNewSession, acpRespondPermission } from '@/services/apiAdapt/acp';
 import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
+import { AcpPermissionCard } from './AcpPermissionCard';
 import { AcpTranscript } from './AcpTranscript';
 import { acpUserTurns, buildAcpTranscript } from './transcript';
 
@@ -84,18 +86,8 @@ export default function AcpSession() {
       </ThreadScroller>
 
       {permission && (
-        <div className="shrink-0 border-t p-3 space-y-2">
-          <div className="text-sm">{permission.title}</div>
-          <div className="flex flex-wrap gap-2">
-            {permission.options.map((o) => (
-              <Button key={o.optionId} size="sm" onClick={() => respond(o.optionId)}>
-                {o.name}
-              </Button>
-            ))}
-            <Button size="sm" variant="ghost" onClick={() => respond(null)}>
-              Cancel
-            </Button>
-          </div>
+        <div className={cn(THREAD_COLUMN, 'shrink-0 pb-3')}>
+          <AcpPermissionCard permission={permission} onRespond={respond} />
         </div>
       )}
     </div>
