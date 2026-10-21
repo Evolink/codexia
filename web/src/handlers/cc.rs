@@ -89,6 +89,16 @@ pub(crate) async fn api_cc_interrupt(
     Ok(StatusCode::OK)
 }
 
+pub(crate) async fn api_cc_mcp_status(
+    AxumState(state): AxumState<WebServerState>,
+    Json(params): Json<CcSessionIdParams>,
+) -> Result<Json<claude_agent_sdk_rs::types::mcp::McpStatusResponse>, ErrorResponse> {
+    cc_session_service::mcp_status(&params.session_id, state.cc_state.as_ref())
+        .await
+        .map(Json)
+        .map_err(to_error_response)
+}
+
 pub(crate) async fn api_cc_resume_session(
     AxumState(state): AxumState<WebServerState>,
     Json(params): Json<CcResumeSessionParams>,

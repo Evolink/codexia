@@ -18,6 +18,20 @@ export async function ccInterrupt(sessionId: string) {
   await postNoContent('/api/cc/interrupt', { session_id: sessionId });
 }
 
+export type CcMcpServerStatus = {
+  name: string;
+  status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled';
+  error?: string;
+  scope?: string;
+};
+
+/** Live MCP server status of a connected session. */
+export async function ccMcpStatus(sessionId: string) {
+  return await postJson<{ mcpServers: CcMcpServerStatus[] }>('/api/cc/mcp-status', {
+    session_id: sessionId,
+  });
+}
+
 export async function ccResumeSession(sessionId: string, options: CcAgentOptionsPayload) {
   await postNoContent('/api/cc/resume-session', {
     session_id: sessionId,

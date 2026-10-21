@@ -21,7 +21,7 @@ use super::{
         api_cc_connect, api_cc_disconnect, api_cc_get_installed_skills,
         api_claude_usage,
         api_cc_delete_session, api_cc_get_session_messages, api_cc_list_sessions, api_cc_get_settings, api_cc_get_slash_commands,
-        api_cc_interrupt,
+        api_cc_interrupt, api_cc_mcp_status,
         api_cc_new_session, api_cc_resolve_permission, api_cc_resume_session,
         api_cc_send_message, api_cc_set_permission_mode, api_cc_update_settings,
         api_create_automation, api_delete_automation, api_list_automation_runs, api_list_automations, api_run_automation_now, api_set_automation_paused,
@@ -450,6 +450,7 @@ pub fn create_router(state: WebServerState) -> Router {
         .route("/api/cc/disconnect", post(api_cc_disconnect))
         .route("/api/cc/new-session", post(api_cc_new_session))
         .route("/api/cc/interrupt", post(api_cc_interrupt))
+        .route("/api/cc/mcp-status", post(api_cc_mcp_status))
         .route("/api/cc/resume-session", post(api_cc_resume_session))
         .route("/api/cc/resolve-permission", post(api_cc_resolve_permission))
         .route("/api/cc/set-permission-mode", post(api_cc_set_permission_mode))
