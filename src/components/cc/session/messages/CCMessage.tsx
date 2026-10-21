@@ -5,7 +5,6 @@ import type { CCMessage as CCMessageType } from '../../types/messages';
 import type { PermissionDecision } from '../../types/permission';
 import { PermissionRequestCard } from './PermissionRequestCard';
 import { RateLimitCard } from './RateLimitCard';
-import { SystemInitCard } from './SystemInitCard';
 import { safeStringify } from './utils';
 
 interface CCMessageProps {
@@ -34,7 +33,7 @@ export function CCMessage({ message: msg, index: idx }: CCMessageProps) {
       return <PermissionRequestCard msg={msg} onResolve={handleResolvePermission} />;
 
     case 'system':
-      return msg.subtype === 'init' ? <SystemInitCard msg={msg} /> : null;
+      return null;
 
     case 'rate_limit_event':
       return <RateLimitCard msg={msg} />;
