@@ -45,6 +45,17 @@ jobs:
           [[ "$TAG" == "v$PACKAGE_VERSION" && "$PACKAGE_VERSION" == "$CARGO_VERSION" ]] || { echo "::error::Tag $TAG != package.json $PACKAGE_VERSION or Cargo.toml $CARGO_VERSION"; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      # Created here so the build jobs can upload in parallel instead of
+      # waiting for tauri-action to create it.
+      - name: Ensure draft release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" --draft --verify-tag --title "$RELEASE_TAG" --notes ""
+
       - name: Ensure CHANGELOG.md has an entry for this tag
         id: notes
         shell: bash
@@ -177,58 +188,20 @@ jobs:
       - name: install frontend dependencies
         run: bun install
 
-      # keke ships as a Tauri sidecar. Built from source (not downloaded from
-      # keke's releases) so this CI does not inflate keke's download counts.
-      - name: Resolve keke target triple
-        id: keke
+      # keke ships as a Tauri sidecar, downloaded from the pinned keke release.
+      - name: Fetch keke sidecar
         shell: bash
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MATRIX_ARGS: ${{ matrix.args }}
         run: |
           TRIPLE=$(echo "$MATRIX_ARGS" | sed -n 's/.*--target[= ]\([^ ]*\).*/\1/p')
           if [[ -z "$TRIPLE" ]]; then
             TRIPLE=$(rustc -vV | sed -n 's/host: //p')
           fi
-          echo "triple=$TRIPLE" >> "$GITHUB_OUTPUT"
-
-      - name: Read pinned keke version
-        shell: bash
-        run: |
-          VERSION=$(cat .github/keke-version)
-          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || { echo "Invalid keke version: $VERSION" >&2; exit 1; }
-          echo "KEKE_VERSION=$VERSION" >> "$GITHUB_ENV"
-
-      - name: Checkout keke
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          repository: milisp/keke-agent
-          ref: ${{ env.KEKE_VERSION }}
-          path: keke-agent
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          workspaces: |
-            .
-            keke-agent
-          key: keke-${{ steps.keke.outputs.triple }}
-
-      - name: Build keke sidecar
-        shell: bash
-        env:
-          KEKE_TRIPLE: ${{ steps.keke.outputs.triple }}
-        run: |
-          cd keke-agent
-          # rust-toolchain.toml pins the toolchain; install it and the target for it.
-          rustup toolchain install --profile minimal
-          rustup target add "$KEKE_TRIPLE"
-          cargo build --release --locked -p keke-cli --target "$KEKE_TRIPLE"
-          cd ..
           EXT=""
-          if [[ "$KEKE_TRIPLE" == *windows* ]]; then EXT=".exe"; fi
-          mkdir -p src-tauri/binaries
-          cp "keke-agent/target/${KEKE_TRIPLE}/release/keke${EXT}" "src-tauri/binaries/keke-${KEKE_TRIPLE}${EXT}"
+          if [[ "$TRIPLE" == *windows* ]]; then EXT=".exe"; fi
+          bash scripts/fetch-keke.sh "$TRIPLE" "src-tauri/binaries/keke-${TRIPLE}${EXT}"
 
       - name: Read Release Notes
         id: notes
@@ -260,23 +233,33 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }} --config src-tauri/tauri.keke.conf.json
 
+      # Reuses the exe tauri-action just built instead of a second full build.
+      - name: Upload Windows portable archive
+        if: matrix.platform == 'windows-latest' && matrix.args == ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.sync-changelog.outputs.tag }}
+        run: |
+          $name = "codexia_$($env:RELEASE_TAG -replace '^v', '')_x64_portable"
+          New-Item -ItemType Directory -Force -Path dist-portable | Out-Null
+          Copy-Item target/release/codexia.exe dist-portable/
+          # Sidecar sits next to the app exe, where the ACP resolver looks for it.
+          Copy-Item src-tauri/binaries/keke-x86_64-pc-windows-msvc.exe dist-portable/keke.exe
+          Compress-Archive -Path dist-portable/* -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash" | Out-File -Encoding ascii -NoNewline "$name.zip.sha256"
+          gh release upload $env:RELEASE_TAG "$name.zip" "$name.zip.sha256" --clobber
+
       - name: Clean up keychain
         if: runner.os == 'macOS'
         run: |
           security delete-keychain build.keychain
           rm -f certificate.p12
 
-  windows-portable:
-    needs: [sync-changelog, publish-tauri]
-    permissions:
-      contents: write
-    uses: ./.github/workflows/release-windows-portable.yml
-    with:
-      tag: ${{ needs.sync-changelog.outputs.tag }}
-    secrets: inherit
-
   web-packages:
-    needs: [sync-changelog, publish-tauri]
+    needs: sync-changelog
     permissions:
       contents: write
     uses: ./.github/workflows/release-web.yml
@@ -285,7 +268,7 @@ jobs:
     secrets: inherit
 
   publish-release:
-    needs: [sync-changelog, publish-tauri, windows-portable, web-packages]
+    needs: [sync-changelog, publish-tauri, web-packages]
     runs-on: ubuntu-latest
     permissions:
       contents: write

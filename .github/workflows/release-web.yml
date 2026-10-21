@@ -61,32 +61,13 @@ jobs:
           target_env="$(echo '${{ matrix.target }}' | tr '-' '_')"
           echo "CC_${target_env}=musl-gcc" >> "$GITHUB_ENV"
 
-      - name: Read pinned keke version
+      - name: Fetch keke sidecar
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=$(cat .github/keke-version)
-          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || { echo "Invalid keke version: $VERSION" >&2; exit 1; }
-          echo "KEKE_VERSION=$VERSION" >> "$GITHUB_ENV"
-
-      - name: Checkout keke
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          repository: milisp/keke-agent
-          ref: ${{ env.KEKE_VERSION }}
-          path: keke-agent
-
-      # Built from source so this CI does not inflate keke's download counts.
-      # keke's rust-toolchain.toml pins its own channel, so the target is
-      # added to that toolchain.
-      - name: Build keke sidecar
-        shell: bash
-        run: |
-          cd keke-agent
-          rustup toolchain install --profile minimal
-          rustup target add ${{ matrix.target }}
-          cargo build --release --locked -p keke-cli --target ${{ matrix.target }}
-          echo "KEKE_BIN=$PWD/target/${{ matrix.target }}/release/keke" >> "$GITHUB_ENV"
+          bash scripts/fetch-keke.sh ${{ matrix.target }} "$RUNNER_TEMP/keke"
+          echo "KEKE_BIN=$RUNNER_TEMP/keke" >> "$GITHUB_ENV"
 
       - name: install frontend dependencies
         run: bun install
@@ -138,11 +119,6 @@ jobs:
         with:
           toolchain: stable
           targets: x86_64-pc-windows-msvc
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          workspaces: "."
 
       - name: install frontend dependencies
         run: bun install
