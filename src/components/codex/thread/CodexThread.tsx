@@ -24,7 +24,8 @@ interface CodexThreadProps {
 
 export function CodexThread({ threadId }: CodexThreadProps = {}) {
   const { t } = useTranslation('thread');
-  const { currentThreadId, events, turnTimingMap, retryNoticeMap } = useCodexStore();
+  const { currentThreadId, events, turnTimingMap, retryNoticeMap, pendingReviewMap } =
+    useCodexStore();
 
   // Use the explicitly provided threadId when embedded, otherwise fall back
   // to the globally active thread.
@@ -34,6 +35,10 @@ export function CodexThread({ threadId }: CodexThreadProps = {}) {
   const currentThreadEvents = activeThreadId ? events[activeThreadId] || [] : [];
   const turnTiming = activeThreadId ? turnTimingMap[activeThreadId] : undefined;
   const retryNotice = activeThreadId ? retryNoticeMap[activeThreadId] : undefined;
+  const pendingReviews = useMemo(
+    () => Object.values((activeThreadId && pendingReviewMap[activeThreadId]) || {}),
+    [activeThreadId, pendingReviewMap]
+  );
 
   const renderItems = useMemo(() => deriveRenderItems(currentThreadEvents), [currentThreadEvents]);
   const turns = useMemo(() => codexUserTurns(renderItems), [renderItems]);
@@ -118,7 +123,11 @@ export function CodexThread({ threadId }: CodexThreadProps = {}) {
           </MessageScrollerItem>
         ))}
         <ApprovalItem />
-        <WorkingIndicator turnTiming={turnTiming} retryNotice={retryNotice} />
+        <WorkingIndicator
+          turnTiming={turnTiming}
+          retryNotice={retryNotice}
+          pendingReviews={pendingReviews}
+        />
         <RequestUserInputItem currentThreadId={activeThreadId} />
         <ElicitationItem currentThreadId={activeThreadId} />
         <PermissionsItem currentThreadId={activeThreadId} />

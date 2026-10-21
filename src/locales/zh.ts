@@ -74,6 +74,9 @@ export const zh = {
     askApproval: '请示批准',
     approvalForMe: '替我批准',
     fullAccess: '完全访问',
+    askApprovalDescription: '只读文件，编辑和运行命令前先询问',
+    approvalForMeDescription: '由 AI 审查员批准或拦截有风险的操作',
+    fullAccessDescription: '无沙箱，不需要批准',
     goal: '目标',
   },
   sidebar: {
@@ -172,6 +175,18 @@ export const zh = {
       reason: '原因:',
       approveOnce: '仅本次批准',
       approveForSession: '本会话内批准',
+    },
+    autoReview: {
+      reviewing: '正在审查 {{action}}',
+      reviewingMany: '正在审查 {{count}} 个批准请求',
+      denied: '自动审查已拒绝',
+      timedOut: '自动审查超时',
+      stdin: '向运行中的命令输入',
+      patchFile: '编辑 {{file}}',
+      patchFiles: '编辑 {{count}} 个文件',
+      network: '访问网络 {{target}}',
+      mcpTool: '工具 {{tool}}',
+      permissions: '额外权限',
     },
     permissions: {
       title: '请求额外权限',

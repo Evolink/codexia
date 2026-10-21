@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ReasoningEffort } from '@/bindings';
-import type { AskForApproval, SandboxMode } from '@/bindings/v2';
+import type { ApprovalsReviewer, AskForApproval, SandboxMode } from '@/bindings/v2';
 import type { Provider } from '@/stores/settings';
 
 export type Personality = 'friendly' | 'pragmatic';
@@ -35,6 +35,11 @@ export const SANDBOX_APPROVAL_MAP: Record<SandboxMode, AskForApproval> = {
   'workspace-write': 'on-request',
   'danger-full-access': 'never',
 };
+
+// "Approve for me" is the workspace-write mode: like Codex's preset of that name, its
+// approval requests go to the auto-reviewer instead of the user.
+export const approvalsReviewerFor = (sandbox: SandboxMode): ApprovalsReviewer =>
+  sandbox === 'workspace-write' ? 'auto_review' : 'user';
 
 export const useConfigStore = create<ConfigStore>()(
   persist(

@@ -280,3 +280,45 @@ describe('step helpers', () => {
   });
 });
 });
+
+describe('EventItem auto-review decisions', () => {
+  const decision = (status: string, rationale: string | null): ServerNotification =>
+    ({
+      method: 'item/autoApprovalReview/completed',
+      params: {
+        threadId: 't1',
+        turnId: 'turn1',
+        startedAtMs: 0,
+        completedAtMs: 1,
+        reviewId: 'r1',
+        targetItemId: null,
+        decisionSource: 'agent',
+        review: { status, riskLevel: 'high', userAuthorization: null, rationale },
+        action: {
+          type: 'networkAccess',
+          target: 'evil.example',
+          host: 'evil.example',
+          protocol: 'https',
+          port: 443,
+        },
+      },
+    }) as unknown as ServerNotification;
+
+  it('shows a denial on one line and keeps the rationale collapsed', () => {
+    render(<EventItem event={decision('denied', 'Unknown host')} />);
+
+    const toggle = screen.getByRole('button', { name: /Auto-review denied/ });
+    expect(toggle.textContent).toContain('network access to evil.example');
+    expect(screen.queryByText('Unknown host')).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(screen.getByText('Unknown host')).toBeTruthy();
+  });
+
+  it('labels a timeout without a rationale toggle', () => {
+    render(<EventItem event={decision('timedOut', null)} />);
+
+    expect(screen.getByText('Auto-review timed out')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+});

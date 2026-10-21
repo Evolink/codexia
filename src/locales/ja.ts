@@ -165,6 +165,18 @@ export const ja = {
       approveOnce: '今回のみ承認',
       approveForSession: 'このセッションで承認',
     },
+    autoReview: {
+      reviewing: '{{action}} を審査中',
+      reviewingMany: '{{count}} 件の承認リクエストを審査中',
+      denied: '自動審査で拒否',
+      timedOut: '自動審査がタイムアウト',
+      stdin: '実行中のコマンドへの入力',
+      patchFile: '{{file}} を編集',
+      patchFiles: '{{count}} 個のファイルを編集',
+      network: '{{target}} へのネットワークアクセス',
+      mcpTool: 'ツール {{tool}}',
+      permissions: '追加の権限',
+    },
     permissions: {
       title: '追加の権限が要求されています',
       networkAccess: 'ネットワークアクセス',

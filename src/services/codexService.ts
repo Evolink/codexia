@@ -13,6 +13,7 @@ import type {
   UserInput,
 } from '@/bindings/v2';
 import {
+  approvalsReviewerFor,
   useCodexStore,
   useConfigStore,
   useThreadQueueStore,
@@ -280,6 +281,7 @@ export const codexService = {
         cwd: threadCwd,
         ...(projectId ? { projectId } : {}),
         approvalPolicy,
+        approvalsReviewer: approvalsReviewerFor(sandbox),
         sandbox,
         baseInstructions: null,
         developerInstructions: null,
@@ -370,6 +372,7 @@ export const codexService = {
         input: userInputs,
         cwd: resolveThreadCwd(threadId),
         approvalPolicy,
+        approvalsReviewer: approvalsReviewerFor(sandbox),
         sandboxPolicy: sandboxModeToPolicy(sandbox, webSearchRequest),
         model: model || null,
         effort: reasoningEffort ?? null,

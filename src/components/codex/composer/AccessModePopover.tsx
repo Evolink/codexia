@@ -53,7 +53,7 @@ export function AccessModePopover() {
           {!isNarrow && <span className="text-xs">{t(displayLabel)}</span>}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-48" align="start">
+      <DropdownMenuContent className="w-64" align="start">
         <div className="space-y-1">
           <DropdownMenuItem
             className="w-full justify-start font-normal h-8 text-xs gap-2 px-2"
@@ -79,14 +79,19 @@ export function AccessModePopover() {
                   setCollaborationMode('default');
                   closeAndFocus();
                 }}
-                className="font-normal h-8 px-2 text-xs"
+                className="font-normal px-2 py-1.5 text-xs"
               >
-                <div className="flex w-full items-center justify-between">
-                  <span className="flex gap-2 items-center">
-                    <Icon className="h-3.5 w-3.5" />
-                    <span>{t(option.label)}</span>
+                <div className="flex w-full items-start justify-between gap-2">
+                  <span className="flex gap-2 items-start">
+                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span className="flex flex-col">
+                      <span>{t(option.label)}</span>
+                      <span className="text-muted-foreground">
+                        {t(`${option.label}Description`)}
+                      </span>
+                    </span>
                   </span>
-                  {isActive && <Check className="h-3.5 w-3.5" />}
+                  {isActive && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
                 </div>
               </DropdownMenuItem>
             );
