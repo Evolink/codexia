@@ -1,3 +1,4 @@
+import { cn } from 'cn';
 import { useEffect, useMemo } from 'react';
 import { CCMessage } from '@/components/cc/session/messages';
 import { PermissionRequestCard } from '@/components/cc/session/messages/PermissionRequestCard';
@@ -147,7 +148,7 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
       </ThreadScroller>
 
       {pendingPermissionIdx !== -1 && (
-        <div className={THREAD_COLUMN}>
+        <div className={cn(THREAD_COLUMN, 'pb-3')}>
           <PermissionRequestCard
             msg={messages[pendingPermissionIdx] as PermissionRequestMessage}
             onResolve={handleResolvePermission}

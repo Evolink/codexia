@@ -1,5 +1,6 @@
 export * from './AddToTodo';
 export * from './AgentWorkspaceSelect';
+export * from './ApprovalCard';
 export * from './CopyButton';
 export * from './FileMentionPopover';
 export * from './MessageToolbar';

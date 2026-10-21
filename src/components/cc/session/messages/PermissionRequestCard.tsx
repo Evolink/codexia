@@ -1,110 +1,150 @@
-import { ShieldAlert, ShieldCheck, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+import { FilePen, Globe, ShieldCheck, ShieldX, SquareTerminal, Wrench } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ApprovalCard, ApprovalCode } from '@/components/common';
 import type { PermissionRequestMessage } from '../../types/messages';
 import type { PermissionDecision } from '../../types/permission';
 import { DiffMessage } from './DiffMessage';
 import { ToolInputDisplay } from './ToolInputDisplay';
 
-const RESOLVED_LABEL: Record<PermissionDecision, string> = {
-  allow: 'Allowed Once',
-  allow_always: 'Always Allowed (Session)',
-  allow_project: 'Always Allowed (Project)',
-  deny: 'Denied',
+const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
+const WEB_TOOLS = new Set(['WebFetch', 'WebSearch']);
+
+const RESOLVED_KEY: Record<PermissionDecision, string> = {
+  allow: 'approval.allowed',
+  allow_always: 'approval.allowedSession',
+  allow_project: 'approval.allowedProject',
+  deny: 'approval.denied',
 };
 
 interface Props {
   msg: PermissionRequestMessage;
-  onResolve: (id: string, decision: PermissionDecision) => void;
+  onResolve: (id: string, decision: PermissionDecision) => void | Promise<void>;
+}
+
+function basename(path: string) {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+/** One-line summary of what the tool will touch. */
+function toolSubject(msg: PermissionRequestMessage): string {
+  const input = msg.toolInput;
+  return String(
+    input.command ?? input.file_path ?? input.notebook_path ?? input.url ?? input.query ?? ''
+  );
+}
+
+/** Compact history row for a request that was already answered. */
+export function ResolvedPermissionRow({ msg }: { msg: PermissionRequestMessage }) {
+  const { t } = useTranslation('thread');
+  if (!msg.resolved) return null;
+  const denied = msg.resolved === 'deny';
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+      {denied ? (
+        <ShieldX className="size-3.5 shrink-0" />
+      ) : (
+        <ShieldCheck className="size-3.5 shrink-0" />
+      )}
+      <span className="shrink-0">{t(RESOLVED_KEY[msg.resolved])}</span>
+      <span className="shrink-0">·</span>
+      <span className="truncate font-mono">{toolSubject(msg) || msg.toolName}</span>
+    </div>
+  );
+}
+
+type ToolCategory = 'terminal' | 'edit' | 'web' | 'tool';
+
+const CATEGORY_ICON: Record<ToolCategory, ReactNode> = {
+  terminal: <SquareTerminal />,
+  edit: <FilePen />,
+  web: <Globe />,
+  tool: <Wrench />,
+};
+
+function toolCategory(msg: PermissionRequestMessage): ToolCategory {
+  const { toolName, toolInput } = msg;
+  if (toolName === 'Bash') return 'terminal';
+  if (EDIT_TOOLS.has(toolName) && (toolInput.file_path || toolInput.notebook_path)) return 'edit';
+  return WEB_TOOLS.has(toolName) ? 'web' : 'tool';
+}
+
+function PermissionToolBody({
+  msg,
+  category,
+}: {
+  msg: PermissionRequestMessage;
+  category: ToolCategory;
+}) {
+  const { toolName, toolInput } = msg;
+  if (category === 'terminal') {
+    return <ApprovalCode>{String(toolInput.command ?? '')}</ApprovalCode>;
+  }
+  if (category !== 'edit') {
+    return <ToolInputDisplay input={toolInput} highlightKeys={['file_path', 'path', 'command']} />;
+  }
+  return (
+    <>
+      <div className="truncate font-mono text-xs text-muted-foreground">
+        {String(toolInput.file_path ?? toolInput.notebook_path)}
+      </div>
+      {toolName === 'Edit' && (
+        <DiffMessage
+          oldString={String(toolInput.old_string ?? '')}
+          newString={String(toolInput.new_string ?? '')}
+        />
+      )}
+      {toolName === 'Write' && <ApprovalCode>{String(toolInput.content ?? '')}</ApprovalCode>}
+    </>
+  );
 }
 
 export function PermissionRequestCard({ msg, onResolve }: Props) {
-  const resolved = msg.resolved;
+  const { t } = useTranslation('thread');
+  const { toolName, toolInput } = msg;
+  const category = toolCategory(msg);
+  const resolve = (decision: PermissionDecision) => onResolve(msg.requestId, decision);
+
+  const kind = {
+    terminal: t('approval.terminal'),
+    edit: t('approval.editFiles'),
+    web: t('approval.network'),
+    tool: t('approval.tool'),
+  }[category];
+  const title =
+    category === 'terminal'
+      ? String(toolInput.description || t('approval.runCommand'))
+      : category === 'edit'
+        ? t('approval.editFile', {
+            file: basename(String(toolInput.file_path ?? toolInput.notebook_path)),
+          })
+        : t('approval.useTool', { tool: toolName });
+
+  const always =
+    msg.alwaysAllowTarget === 'project'
+      ? {
+          key: 'project',
+          label: t('approval.allowProject'),
+          hint: t('approval.allowProjectHint'),
+          onSelect: () => resolve('allow_project'),
+        }
+      : {
+          key: 'session',
+          label: t('approval.allowSession'),
+          hint: t('approval.allowSessionToolHint', { tool: toolName }),
+          onSelect: () => resolve('allow_always'),
+        };
 
   return (
-    <Card className="p-4 border-amber-500/30 bg-amber-500/5 shadow-sm">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-3 text-amber-600 dark:text-amber-400">
-        <ShieldAlert className="w-4 h-4 shrink-0" />
-        <span className="text-sm font-semibold uppercase tracking-wide">Permission Request</span>
-      </div>
-
-      {/* Tool info */}
-      <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-background/50 border border-amber-500/20 text-xs mb-3">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-muted-foreground">Tool:</span>
-          <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-amber-600 dark:text-amber-400">
-            {msg.toolName}
-          </code>
-        </div>
-        {msg.toolName === 'Edit' ? (
-          <>
-            <code className="font-mono text-muted-foreground">{msg.toolInput.file_path}</code>
-            <DiffMessage
-              oldString={String(msg.toolInput.old_string ?? '')}
-              newString={String(msg.toolInput.new_string ?? '')}
-            />
-          </>
-        ) : (
-          <ToolInputDisplay
-            input={msg.toolInput}
-            highlightKeys={['file_path', 'path', 'command']}
-          />
-        )}
-      </div>
-
-      {/* Resolved state */}
-      {resolved ? (
-        <div
-          className={cn(
-            'text-[10px] font-bold px-2 py-1.5 rounded-md border text-center uppercase tracking-widest flex items-center justify-center gap-1.5',
-            resolved === 'deny'
-              ? 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
-              : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-          )}
-        >
-          {resolved === 'deny' ? <X className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
-          {RESOLVED_LABEL[resolved] ?? resolved}
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 border-red-500/30 text-red-500 hover:bg-red-500/5"
-            onClick={() => onResolve(msg.requestId, 'deny')}
-          >
-            Deny
-          </Button>
-          {msg.alwaysAllowTarget === 'project' ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10"
-              onClick={() => onResolve(msg.requestId, 'allow_project')}
-            >
-              <ShieldCheck className="w-3 h-3 mr-1" /> Always Allow (project)
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-              onClick={() => onResolve(msg.requestId, 'allow_always')}
-            >
-              <ShieldCheck className="w-3 h-3 mr-1" /> Always Allow (session)
-            </Button>
-          )}
-          <Button
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
-            onClick={() => onResolve(msg.requestId, 'allow')}
-          >
-            Allow Once
-          </Button>
-        </div>
-      )}
-    </Card>
+    <ApprovalCard
+      icon={CATEGORY_ICON[category]}
+      kind={kind}
+      title={title}
+      deny={{ key: 'deny', label: t('approval.deny'), onSelect: () => resolve('deny') }}
+      allow={{ key: 'once', label: t('approval.allowOnce'), onSelect: () => resolve('allow') }}
+      moreOptions={[always]}
+    >
+      <PermissionToolBody msg={msg} category={category} />
+    </ApprovalCard>
   );
 }

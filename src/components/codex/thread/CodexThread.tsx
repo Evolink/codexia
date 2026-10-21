@@ -1,8 +1,9 @@
+import { cn } from 'cn';
 import { Fragment, type ReactNode, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WorkSummary } from '@/components/ai-elements/WorkSummary';
 import { useCodexStore } from '@/components/codex/stores';
-import { ThreadScroller } from '@/components/common';
+import { THREAD_COLUMN, ThreadScroller } from '@/components/common';
 import { MessageScrollerItem } from '@/components/ui/message-scroller';
 import { EventItem } from '../items';
 import { ApprovalItem } from '../items/ApprovalItem';
@@ -122,7 +123,6 @@ export function CodexThread({ threadId }: CodexThreadProps = {}) {
             {entry.content}
           </MessageScrollerItem>
         ))}
-        <ApprovalItem />
         <WorkingIndicator
           turnTiming={turnTiming}
           retryNotice={retryNotice}
@@ -132,6 +132,9 @@ export function CodexThread({ threadId }: CodexThreadProps = {}) {
         <ElicitationItem currentThreadId={activeThreadId} />
         <PermissionsItem currentThreadId={activeThreadId} />
       </ThreadScroller>
+      <div className={cn(THREAD_COLUMN, 'pb-3 empty:hidden')}>
+        <ApprovalItem threadId={activeThreadId} />
+      </div>
     </div>
   );
 }

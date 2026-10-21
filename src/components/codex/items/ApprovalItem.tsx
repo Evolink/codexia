@@ -1,151 +1,195 @@
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import { useState } from 'react';
+import type { TFunction } from 'i18next';
+import { FilePen, Globe, SquareTerminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useApprovalStore } from '@/components/codex/stores';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import type { CommandExecutionApprovalDecision } from '@/bindings/v2';
+import { type ApprovalRequest, useApprovalStore, useCodexStore } from '@/components/codex/stores';
+import { ApprovalCard, ApprovalCode, type ApprovalOption } from '@/components/common';
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 
-export function ApprovalItem() {
-  const { currentApproval, pendingApprovals, respondToApproval } = useApprovalStore();
-  const [showDetails, setShowDetails] = useState(false);
+type CommandApproval = Extract<ApprovalRequest, { type: 'commandExecution' }>;
+type FileApproval = Extract<ApprovalRequest, { type: 'fileChange' }>;
+
+const DEFAULT_COMMAND_DECISIONS: CommandExecutionApprovalDecision[] = [
+  'accept',
+  'acceptForSession',
+  'decline',
+];
+
+interface ApprovalItemProps {
+  threadId: string | null;
+}
+
+export function ApprovalItem({ threadId }: ApprovalItemProps) {
+  const pendingApprovals = useApprovalStore((s) => s.pendingApprovals);
+  const pending = pendingApprovals.filter((a) => a.threadId === threadId);
+  const approval = pending[0];
+  if (!approval) return null;
+
+  return approval.type === 'commandExecution' ? (
+    <CommandApprovalCard approval={approval} pendingCount={pending.length} />
+  ) : (
+    <FileApprovalCard approval={approval} pendingCount={pending.length} />
+  );
+}
+
+/** Decisions the server offers, or the legacy defaults for older servers. */
+function availableDecisions(approval: CommandApproval): CommandExecutionApprovalDecision[] {
+  if (approval.availableDecisions?.length) return approval.availableDecisions;
+  const amendment = approval.proposedExecpolicyAmendment;
+  return amendment
+    ? [
+        ...DEFAULT_COMMAND_DECISIONS,
+        { acceptWithExecpolicyAmendment: { execpolicy_amendment: amendment } },
+      ]
+    : DEFAULT_COMMAND_DECISIONS;
+}
+
+/** Menu entry for a secondary decision; accept and deny have their own buttons. */
+function describeDecision(
+  decision: CommandExecutionApprovalDecision,
+  t: TFunction<'thread'>
+): Omit<ApprovalOption, 'onSelect'> | null {
+  if (decision === 'accept' || decision === 'decline' || decision === 'cancel') return null;
+  if (decision === 'acceptForSession') {
+    return {
+      key: 'session',
+      label: t('approval.allowSession'),
+      hint: t('approval.allowSessionCommandHint'),
+    };
+  }
+  if ('acceptWithExecpolicyAmendment' in decision) {
+    const prefix = decision.acceptWithExecpolicyAmendment.execpolicy_amendment.join(' ');
+    return {
+      key: 'prefix',
+      label: t('approval.allowPrefix'),
+      hint: t('approval.allowPrefixHint', { prefix }),
+    };
+  }
+  const { host, action } = decision.applyNetworkPolicyAmendment.network_policy_amendment;
+  return {
+    key: `network-${action}-${host}`,
+    label:
+      action === 'allow' ? t('approval.allowHost', { host }) : t('approval.blockHost', { host }),
+  };
+}
+
+function CommandApprovalCard({
+  approval,
+  pendingCount,
+}: {
+  approval: CommandApproval;
+  pendingCount: number;
+}) {
   const { t } = useTranslation('thread');
+  const respondToApproval = useApprovalStore((s) => s.respondToApproval);
+  const workspaceCwd = useWorkspaceStore((s) => s.cwd);
 
-  if (!currentApproval) return null;
+  const respond = (decision: CommandExecutionApprovalDecision) =>
+    respondToApproval(approval.requestId, true, decision);
 
-  const isCommandExecution = currentApproval.type === 'commandExecution';
+  const host = approval.networkApprovalContext?.host;
+  const decisions = availableDecisions(approval);
+  const options = decisions.flatMap((decision) => {
+    const option = describeDecision(decision, t);
+    return option ? [{ ...option, onSelect: () => respond(decision) }] : [];
+  });
 
-  const handleApprove = async () => {
-    try {
-      let decision: any = 'accept';
-      if (
-        currentApproval.type === 'commandExecution' &&
-        currentApproval.proposedExecpolicyAmendment
-      ) {
-        decision = {
-          acceptWithExecpolicyAmendment: {
-            execpolicy_amendment: currentApproval.proposedExecpolicyAmendment,
-          },
-        };
-      }
-      await respondToApproval(currentApproval.requestId, isCommandExecution, decision);
-    } catch (error) {
-      console.error('Failed to approve:', error);
-    }
-  };
-
-  const handleApproveForSession = async () => {
-    try {
-      await respondToApproval(currentApproval.requestId, isCommandExecution, 'acceptForSession');
-    } catch (error) {
-      console.error('Failed to approve for session:', error);
-    }
-  };
-
-  const handleDecline = async () => {
-    try {
-      await respondToApproval(currentApproval.requestId, isCommandExecution, 'decline');
-    } catch (error) {
-      console.error('Failed to decline:', error);
-    }
-  };
+  const title =
+    approval.reason ||
+    (host
+      ? t('approval.networkAccess', { host })
+      : approval.kind === 'writeStdin'
+        ? t('approval.sendInput')
+        : t('approval.runCommand'));
+  // Servers that drop `decline` only offer `cancel` (abort the turn).
+  const denyDecision =
+    decisions.includes('decline') || !decisions.includes('cancel') ? 'decline' : 'cancel';
+  // Parsed actions skip the `/bin/zsh -lc '…'` wrapper around a single command.
+  const command =
+    approval.commandActions?.length === 1 ? approval.commandActions[0].command : approval.command;
+  // The working directory only matters when it differs from the project.
+  const showCwd = approval.cwd && approval.cwd !== workspaceCwd;
+  const extraPermissions = approval.additionalPermissions
+    ? JSON.stringify(approval.additionalPermissions, null, 2)
+    : null;
 
   return (
-    <div className="rounded-md border bg-background p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-warning" />
-          <span className="font-medium">{t('approval.title')}</span>
-          {pendingApprovals.length > 1 && (
-            <Badge variant="secondary">
-              {t('common.pending', { count: pendingApprovals.length })}
-            </Badge>
-          )}
-        </div>
-        {currentApproval.reason && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowDetails(!showDetails)}
-            className="h-7"
-          >
-            {showDetails ? (
-              <>
-                <ChevronUp className="w-4 h-4 mr-1" />
-                {t('approval.hideDetails')}
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-4 h-4 mr-1" />
-                {t('approval.showDetails')}
-              </>
-            )}
-          </Button>
-        )}
-      </div>
-
-      {/* Main info - always visible */}
-      <div className="grid gap-3 text-sm">
-        {currentApproval.type === 'commandExecution' && (
-          <div>
-            <div className="font-medium mb-1">{t('approval.commandRequest')}</div>
-            <div className="text-muted-foreground p-2 bg-muted rounded font-mono text-xs break-all">
-              itemId: {currentApproval.itemId}
-            </div>
-          </div>
-        )}
-
-        {currentApproval.type === 'fileChange' && currentApproval.grantRoot && (
-          <div>
-            <div className="font-medium mb-1">{t('approval.fileRequest')}</div>
-            <div className="text-muted-foreground p-2 bg-muted rounded">
-              <div className="text-xs mb-1">{t('approval.allowWritesUnder')}</div>
-              <div className="font-mono text-xs break-all">{currentApproval.grantRoot}</div>
-            </div>
-          </div>
-        )}
-
-        {currentApproval.type === 'commandExecution' &&
-          currentApproval.proposedExecpolicyAmendment && (
-            <div>
-              <div className="font-medium mb-1 flex items-center gap-2">
-                <span>{t('approval.policyAmendment')}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {t('approval.skipFutureApprovals')}
-                </Badge>
-              </div>
-              <div className="text-muted-foreground p-2 bg-muted rounded font-mono text-xs break-all">
-                {currentApproval.proposedExecpolicyAmendment.join(' ')}
-              </div>
-            </div>
-          )}
-      </div>
-
-      {/* Collapsible details */}
-      {showDetails && (
-        <div className="grid gap-3 text-sm pt-2 border-t">
-          {currentApproval.reason && (
-            <div>
-              <div className="font-medium mb-1">{t('approval.reason')}</div>
-              <div className="text-muted-foreground p-2 bg-muted rounded text-xs">
-                {currentApproval.reason}
-              </div>
-            </div>
-          )}
+    <ApprovalCard
+      icon={host ? <Globe /> : <SquareTerminal />}
+      kind={host ? t('approval.network') : t('approval.terminal')}
+      title={title}
+      pendingCount={pendingCount}
+      deny={{ key: 'deny', label: t('approval.deny'), onSelect: () => respond(denyDecision) }}
+      allow={{ key: 'once', label: t('approval.allowOnce'), onSelect: () => respond('accept') }}
+      moreOptions={options}
+      details={
+        extraPermissions && (
+          <>
+            <div>{t('approval.extraPermissions')}</div>
+            <ApprovalCode>{extraPermissions}</ApprovalCode>
+          </>
+        )
+      }
+    >
+      {command && <ApprovalCode>{command}</ApprovalCode>}
+      {showCwd && (
+        <div className="truncate font-mono text-xs text-muted-foreground">
+          {t('approval.inDirectory', { path: approval.cwd })}
         </div>
       )}
+    </ApprovalCard>
+  );
+}
 
-      {/* Action buttons */}
-      <div className="flex flex-col sm:flex-row gap-2 pt-2">
-        <Button variant="outline" onClick={handleDecline} className="flex-1">
-          {t('common.decline')}
-        </Button>
-        <Button variant="secondary" onClick={handleApproveForSession} className="flex-1">
-          {t('approval.approveForSession')}
-        </Button>
-        <Button onClick={handleApprove} className="flex-1">
-          {t('approval.approveOnce')}
-        </Button>
-      </div>
-    </div>
+function FileApprovalCard({
+  approval,
+  pendingCount,
+}: {
+  approval: FileApproval;
+  pendingCount: number;
+}) {
+  const { t } = useTranslation('thread');
+  const respondToApproval = useApprovalStore((s) => s.respondToApproval);
+  // The request only carries the item id; the paths live on the started item.
+  const changes = useCodexStore((s) => {
+    for (const event of s.events[approval.threadId] ?? []) {
+      if (event.method !== 'item/started') continue;
+      const item = event.params.item;
+      if (item.type === 'fileChange' && item.id === approval.itemId) return item.changes;
+    }
+    return undefined;
+  });
+
+  const respond = (decision: 'accept' | 'acceptForSession' | 'decline') =>
+    respondToApproval(approval.requestId, false, decision);
+
+  return (
+    <ApprovalCard
+      icon={<FilePen />}
+      kind={t('approval.editFiles')}
+      title={approval.reason || t('approval.makeEdits')}
+      pendingCount={pendingCount}
+      deny={{ key: 'deny', label: t('approval.deny'), onSelect: () => respond('decline') }}
+      allow={{ key: 'once', label: t('approval.allowOnce'), onSelect: () => respond('accept') }}
+      moreOptions={[
+        {
+          key: 'session',
+          label: t('approval.allowSession'),
+          hint: t('approval.allowSessionFilesHint'),
+          onSelect: () => respond('acceptForSession'),
+        },
+      ]}
+    >
+      {changes && changes.length > 0 && (
+        <ApprovalCode>
+          {changes.map((change) => `${change.kind.type} ${change.path}`).join('\n')}
+        </ApprovalCode>
+      )}
+      {approval.grantRoot && (
+        <div className="truncate font-mono text-xs text-muted-foreground">
+          {t('approval.writesUnder', { path: approval.grantRoot })}
+        </div>
+      )}
+    </ApprovalCard>
   );
 }
