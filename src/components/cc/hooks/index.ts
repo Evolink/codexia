@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { isDesktopTauri } from '@/hooks/runtime';
 import { openEventStream } from '@/lib/eventStream';
 import { useCCStore } from '@/stores/cc';
+import { useAgentCenterStore } from '@/stores/useAgentCenterStore';
 import type { CCMessage, SystemMessage } from '../types/messages';
 
 const CC_LISTENER_READY_EVENT = 'cc-session-listener-ready';
@@ -23,19 +24,19 @@ interface CCListenerOptions {
  * Signals `useCCSessionManager` that this session's listener is bound.
  * Only standalone listeners signal; embedded ones are not what it waits for.
  */
-function dispatchReady(eventName: string, sessionId: string, embedded: boolean) {
-  if (embedded) return;
+function dispatchReady(eventName: string | null, sessionId: string, embedded: boolean) {
+  if (embedded || !eventName) return;
   window.dispatchEvent(new CustomEvent(eventName, { detail: { sessionId } }));
 }
 
 /**
  * Subscribes to a backend event, over Tauri IPC on desktop and SSE elsewhere,
- * and signals readiness once the subscription is live.
+ * and signals `readyEvent` (when given) once the subscription is live.
  * Returns the effect cleanup that tears the subscription down.
  */
 function subscribe<T>(
   event: string,
-  readyEvent: string,
+  readyEvent: string | null,
   sessionId: string,
   embedded: boolean,
   onPayload: (payload: T) => void
@@ -98,6 +99,36 @@ export function useCCSessionListener({ disabled = false, sessionId }: CCListener
       handleMessage
     );
   }, [disabled, targetSessionId, sessionId, addMessage, addMessageToSession, setSlashCommands]);
+}
+
+type RenamePayload = { sessionId: string; newSessionId: string };
+
+/**
+ * Follows a session to the id the CLI continues under after `/clear`. The backend
+ * emits this after the turn's result, so no message is lost while ids switch.
+ */
+export function useCCSessionRenameListener({
+  disabled = false,
+  sessionId,
+}: CCListenerOptions = {}) {
+  const activeSessionId = useCCStore((s) => s.activeSessionId);
+  const targetSessionId = sessionId ?? activeSessionId;
+
+  useEffect(() => {
+    if (disabled || !targetSessionId) return;
+
+    return subscribe<RenamePayload>(
+      'cc-session-renamed',
+      null,
+      targetSessionId,
+      Boolean(sessionId),
+      ({ sessionId: from, newSessionId: to }) => {
+        if (from !== targetSessionId) return;
+        useCCStore.getState().renameSession(from, to);
+        useAgentCenterStore.getState().renameCard('cc', from, to);
+      }
+    );
+  }, [disabled, targetSessionId, sessionId]);
 }
 
 type PermPayload = {

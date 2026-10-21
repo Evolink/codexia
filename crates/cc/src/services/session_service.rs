@@ -234,6 +234,9 @@ pub async fn connect(params: CCConnectParams, state: &CCState) -> Result<(), Str
         cwd: Some(PathBuf::from(&params.cwd)),
         model: params.model,
         effort: params.effort.as_deref().and_then(parse_effort_level),
+        // A fresh session runs under the client key, so the CLI transcript and
+        // Codexia share one id.
+        session_id: params.resume_id.is_none().then(|| params.session_id.clone()),
         resume: params.resume_id,
         permission_mode,
         stderr_callback: Some(Arc::new(|msg| log::error!("[CC STDERR] {}", msg))),
@@ -269,6 +272,11 @@ pub async fn new_session(
     let session_id_arc: SessionIdArc = Arc::new(Mutex::new(session_id.clone()));
     let permission_mode_str = options.permission_mode.clone();
     let mut claude_options = options.to_claude_options(None);
+    // Run the CLI session under the id returned to the frontend, so the live card
+    // and the session on disk share one id.
+    if claude_options.resume.is_none() && !claude_options.continue_conversation {
+        claude_options.session_id = Some(session_id.clone());
+    }
 
     if needs_permission_callback(permission_mode_str.as_deref()) {
         claude_options.hooks = Some(build_permission_hooks(

@@ -10,6 +10,8 @@ interface AgentCenterState {
   addAgentCard: (card: AgentCenterCard) => boolean;
   removeCard: (card: AgentCenterCard) => void;
   updateCard: (card: AgentCenterCard) => void;
+  /** Moves a card to a new id, e.g. when its session continues under a new id. */
+  renameCard: (kind: AgentCenterCard['kind'], id: string, newId: string) => void;
   currentAgentCardId: string | null;
   setCurrentAgentCardId: (id: string | null) => void;
 }
@@ -49,6 +51,12 @@ export const useAgentCenterStore = create<AgentCenterState>()(
               ? ({ ...existing, ...card } as AgentCenterCard)
               : existing
           ),
+        })),
+
+      renameCard: (kind, id, newId) =>
+        set((state) => ({
+          cards: state.cards.map((c) => (c.kind === kind && c.id === id ? { ...c, id: newId } : c)),
+          currentAgentCardId: state.currentAgentCardId === id ? newId : state.currentAgentCardId,
         })),
 
       currentAgentCardId: null,

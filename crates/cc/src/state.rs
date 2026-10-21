@@ -78,20 +78,24 @@ impl CCState {
         Ok(())
     }
 
-    /// Registers an extra key for an existing client, so callers that only know the
-    /// real CLI session id (e.g. automation runs) can reach the same client.
-    pub async fn alias_client(&self, client_id: &str, alias: String) {
-        if alias == client_id {
+    /// Moves a client to a new key, e.g. after `/clear` makes the CLI continue
+    /// under a new session id. Permission hooks follow through the shared id arc.
+    pub async fn rename_client(&self, client_id: &str, new_id: &str) {
+        if client_id == new_id {
             return;
         }
         let mut clients = self.clients.lock().await;
-        let Some(client) = clients.get(client_id).cloned() else {
+        let Some(client) = clients.remove(client_id) else {
             return;
         };
-        clients.insert(alias.clone(), client);
-        let permission_mode = self.get_permission_mode(client_id);
-        self.session_metadata
-            .insert(alias, SessionMetadata { permission_mode });
+        clients.insert(new_id.to_string(), client);
+        if let Some((_, meta)) = self.session_metadata.remove(client_id) {
+            self.session_metadata.insert(new_id.to_string(), meta);
+        }
+        if let Some((_, arc)) = self.session_arcs.remove(client_id) {
+            *arc.lock().unwrap() = new_id.to_string();
+            self.session_arcs.insert(new_id.to_string(), arc);
+        }
     }
 
     pub async fn remove_client(&self, client_id: &str) -> Result<(), String> {
@@ -128,5 +132,31 @@ impl CCState {
 impl Default for CCState {
     fn default() -> Self {
         Self::new(Arc::new(NoOpSink))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn rename_client_moves_client_metadata_and_hook_id() {
+        let state = CCState::default();
+        state
+            .create_client("old".to_string(), ClaudeAgentOptions::default(), Some("plan".to_string()))
+            .await
+            .unwrap();
+        let arc = Arc::new(Mutex::new("old".to_string()));
+        state.session_arcs.insert("old".to_string(), Arc::clone(&arc));
+
+        state.rename_client("old", "new").await;
+
+        assert!(state.get_client("old").await.is_none());
+        assert!(state.get_client("new").await.is_some());
+        assert_eq!(state.get_permission_mode("new").as_deref(), Some("plan"));
+        assert!(state.get_permission_mode("old").is_none());
+        // Permission hooks hold the arc and now report the new id.
+        assert_eq!(arc.lock().unwrap().as_str(), "new");
+        assert!(state.session_arcs.contains_key("new"));
     }
 }

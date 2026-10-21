@@ -31,7 +31,6 @@ pub(crate) async fn api_cc_send_message(
     AxumState(state): AxumState<WebServerState>,
     Json(params): Json<CcSendMessageParams>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let sid = params.session_id.clone();
     let cc_state = Arc::clone(&state.cc_state);
 
     cc_message_service::send_message(
@@ -39,14 +38,12 @@ pub(crate) async fn api_cc_send_message(
         &params.message,
         &params.image_paths,
         state.cc_state.as_ref(),
-        move |msg| match serde_json::to_value(msg) {
+        move |sid, msg| match serde_json::to_value(msg) {
             Ok(mut payload) => {
-                // Inject session_id into the payload so the frontend filter matches,
-                // and emit under the plain "cc-message" event name (same as the Tauri command).
+                // Stamp the session's client key so the frontend filter matches: messages
+                // that carry no session_id, or a forked one, still reach the right card.
                 if let Some(obj) = payload.as_object_mut() {
-                    // Always override session_id with the caller's sid so that resumed sessions
-                    // (which may produce a new SDK session_id) are still routed to the correct card.
-                    obj.insert("session_id".to_string(), serde_json::Value::String(sid.clone()));
+                    obj.insert("session_id".to_string(), serde_json::Value::String(sid.to_string()));
                 }
                 cc_state.emit("cc-message", payload);
             }
