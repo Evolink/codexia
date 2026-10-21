@@ -70,7 +70,8 @@ use super::{
         api_skills_list_marketplace, api_skills_uninstall_installed,
         api_skillssh_install, api_skillssh_leaderboard, api_skillssh_search,
         api_terminal_resize, api_terminal_start, api_terminal_stop,
-        api_terminal_write, api_turn_interrupt, api_turn_start,
+        api_terminal_write, api_thread_background_terminals_list,
+        api_thread_background_terminals_terminate, api_turn_interrupt, api_turn_start,
         api_unified_add_mcp_server, api_unified_disable_mcp_server,
         api_unified_enable_mcp_server, api_unified_read_mcp_config,
         api_unified_remove_mcp_server, api_write_file,
@@ -254,6 +255,14 @@ pub fn create_router(state: WebServerState) -> Router {
         .route("/api/codex/turn/start", post(api_turn_start))
         .route("/api/codex/turn/steer", post(api_turn_steer))
         .route("/api/codex/turn/interrupt", post(api_turn_interrupt))
+        .route(
+            "/api/codex/thread/background-terminals/list",
+            post(api_thread_background_terminals_list),
+        )
+        .route(
+            "/api/codex/thread/background-terminals/terminate",
+            post(api_thread_background_terminals_terminate),
+        )
         .route("/api/codex/turn/settings/update", post(api_turn_settings_update))
         .route("/api/codex/thread/queue/add", post(api_thread_queue_add))
         .route("/api/codex/thread/queue/list", post(api_thread_queue_list))

@@ -42,6 +42,10 @@ import type {
   ReviewStartResponse,
   ThreadApproveGuardianDeniedActionParams,
   ThreadApproveGuardianDeniedActionResponse,
+  ThreadBackgroundTerminalsListParams,
+  ThreadBackgroundTerminalsListResponse,
+  ThreadBackgroundTerminalsTerminateParams,
+  ThreadBackgroundTerminalsTerminateResponse,
   ThreadForkParams,
   ThreadForkResponse,
   ThreadGoalClearParams,
@@ -165,6 +169,22 @@ export async function threadQueueStart(params: ThreadQueueStartParams) {
 
 export async function turnInterrupt(params: TurnInterruptParams) {
   return await postJson('/api/codex/turn/interrupt', params);
+}
+
+export async function threadBackgroundTerminalsList(params: ThreadBackgroundTerminalsListParams) {
+  return await postJson<ThreadBackgroundTerminalsListResponse>(
+    '/api/codex/thread/background-terminals/list',
+    params
+  );
+}
+
+export async function threadBackgroundTerminalsTerminate(
+  params: ThreadBackgroundTerminalsTerminateParams
+) {
+  return await postJson<ThreadBackgroundTerminalsTerminateResponse>(
+    '/api/codex/thread/background-terminals/terminate',
+    params
+  );
 }
 
 export async function listThreads(params: ThreadListParams) {

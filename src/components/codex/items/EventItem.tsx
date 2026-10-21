@@ -17,6 +17,7 @@ import { ThreadFileChangesSummary } from './ThreadFileChangesSummary';
 import { ThreadStepChain } from './ThreadStepChain';
 import { PlanTextItem, TurnPlan } from './TurnPlan';
 import { EditableUserMessageItem } from './UserMessageItem';
+import { unfinishedCommandIds } from './unfinishedCommands';
 
 type EventItemProps = {
   event: ServerNotification;
@@ -28,22 +29,6 @@ const isItemCompleted = (itemId: string, context?: RenderEventContext) =>
   !!context?.events?.some(
     (candidate) => candidate.method === 'item/completed' && candidate.params.item.id === itemId
   );
-
-// A turn can end while a command it started is still running: interrupting only
-// ends the turn, and the shell process may outlive it.
-const hasUnfinishedCommand = (turnId: string, context?: RenderEventContext) => {
-  const open = new Set<string>();
-  for (const candidate of context?.events ?? []) {
-    if (candidate.method === 'item/started') {
-      if (candidate.params.turnId === turnId && candidate.params.item.type === 'commandExecution') {
-        open.add(candidate.params.item.id);
-      }
-    } else if (candidate.method === 'item/completed') {
-      open.delete(candidate.params.item.id);
-    }
-  }
-  return open.size > 0;
-};
 
 export const EventItem = ({ event, context }: EventItemProps) => {
   const { t } = useTranslation('thread');
@@ -121,7 +106,7 @@ export const EventItem = ({ event, context }: EventItemProps) => {
         return (
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="destructive">{event.params.turn.status}</Badge>
-            {hasUnfinishedCommand(event.params.turn.id, context) && (
+            {unfinishedCommandIds(context?.events, event.params.turn.id).length > 0 && (
               <span className="text-xs text-muted-foreground">{t('items.commandMayStillRun')}</span>
             )}
           </div>

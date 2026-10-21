@@ -138,6 +138,30 @@ pub(crate) async fn api_turn_interrupt(
     Ok(Json(result))
 }
 
+pub(crate) async fn api_thread_background_terminals_list(
+    AxumState(state): AxumState<WebServerState>,
+    Json(params): Json<Value>,
+) -> Result<Json<Value>, ErrorResponse> {
+    let result = require_codex(&state)?
+        .codex
+        .send_request("thread/backgroundTerminals/list", params)
+        .await
+        .map_err(to_error_response)?;
+    Ok(Json(result))
+}
+
+pub(crate) async fn api_thread_background_terminals_terminate(
+    AxumState(state): AxumState<WebServerState>,
+    Json(params): Json<Value>,
+) -> Result<Json<Value>, ErrorResponse> {
+    let result = require_codex(&state)?
+        .codex
+        .send_request("thread/backgroundTerminals/terminate", params)
+        .await
+        .map_err(to_error_response)?;
+    Ok(Json(result))
+}
+
 pub(crate) async fn api_model_list(
     AxumState(state): AxumState<WebServerState>,
 ) -> Result<Json<Value>, ErrorResponse> {
