@@ -1,11 +1,21 @@
 import { useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fromSdkMessages } from '@/components/cc/utils/fromSdkMessages';
-import { ccGetSessionMessages, ccNewSession, ccResumeSession, ccSendMessage } from '@/services';
+import { toast } from '@/components/ui/use-toast';
+import {
+  ccForkSession,
+  ccGetSessionMessages,
+  ccNewSession,
+  ccResumeSession,
+  ccSendMessage,
+} from '@/services';
 import { gitCreateWorktree } from '@/services/apiAdapt/git';
 import { type CCOptions, useCCStore } from '@/stores/cc';
+import { useCCInputStore } from '@/stores/cc/useCCInputStore';
 import { useAgentCenterStore } from '@/stores/useAgentCenterStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import type { CcAgentOptionsPayload } from '@/types/cc/agentOptions';
+import { getErrorMessage } from '@/utils/errorUtils';
 
 const CC_LISTENER_READY_EVENT = 'cc-session-listener-ready';
 const CC_PERMISSION_LISTENER_READY_EVENT = 'cc-permission-listener-ready';
@@ -106,6 +116,7 @@ function buildAgentOptions(
  * Handles session creation, resumption, and selection
  */
 export function useCCSessionManager() {
+  const { t } = useTranslation('thread');
   // Select per field: subscribing to the whole store re-renders every consumer
   // of this hook on any CC state change (messages streaming in, etc.).
   const options = useCCStore((s) => s.options);
@@ -339,10 +350,45 @@ export function useCCSessionManager() {
     [handleResumeSession, switchToSession]
   );
 
+  /**
+   * Rewrites a past prompt: the card moves to a branch of the session that keeps
+   * everything before the prompt, and the prompt goes back to the composer. The
+   * original session is left as it was. Editing the first prompt starts fresh.
+   */
+  const handleEditPrompt = useCallback(
+    async (sessionId: string, prompt: { text: string; index?: number; forkAt?: string | null }) => {
+      const { index, forkAt } = prompt;
+      if (index === undefined || forkAt === undefined) return;
+      try {
+        if (forkAt === null) {
+          await handleNewSession();
+        } else {
+          const cwd = useWorkspaceStore.getState().cwd;
+          if (!cwd?.trim()) throw new Error('No working directory');
+          const forkId = await ccForkSession(sessionId, forkAt, buildAgentOptions(options, cwd));
+          const state = useCCStore.getState();
+          const messages =
+            state.activeSessionId === sessionId
+              ? state.messages
+              : (state.sessionMessagesMap[sessionId] ?? []);
+          state.renameSession(sessionId, forkId, messages.slice(0, index));
+          useAgentCenterStore.getState().renameCard('cc', sessionId, forkId);
+          setConnected(false);
+        }
+        useCCInputStore.getState().setInputValue(prompt.text);
+      } catch (error) {
+        console.error('[useCCSessionManager] Failed to edit prompt', { sessionId, error });
+        toast.error(t('userMessage.editFailed'), { description: getErrorMessage(error) });
+      }
+    },
+    [options, handleNewSession, setConnected, t]
+  );
+
   return {
     handleNewSession,
     handleResumeSession,
     handleSessionSelect,
+    handleEditPrompt,
     isLoading,
   };
 }

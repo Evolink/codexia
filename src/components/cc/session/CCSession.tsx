@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { CCMessage } from '@/components/cc/session/messages';
 import { PermissionRequestCard } from '@/components/cc/session/messages/PermissionRequestCard';
 import { ThreadScroller } from '@/components/common';
+import { useCCSessionManager } from '@/hooks/useCCSessionManager';
 import { ccGetSessionMessages, ccResumeSession } from '@/services/apiAdapt/cc';
 import { useCCStore } from '@/stores/cc';
 import { useCCSettingsStore } from '@/stores/settings';
@@ -48,6 +49,7 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
     setSessionLoading,
   } = useCCStore();
   const { cwd } = useWorkspaceStore();
+  const { handleEditPrompt } = useCCSessionManager();
 
   // In embedded mode use per-session data; otherwise use the global active-session data.
   const messages = sessionId ? (sessionMessagesMap[sessionId] ?? []) : globalMessages;
@@ -139,6 +141,12 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
         <CCTranscript
           items={items}
           renderMessage={(index) => <CCMessage message={messages[index]} index={index} />}
+          onEditPrompt={
+            // Branching moves the main view's session; cards and busy sessions stay put.
+            !isEmbedded && !isLoading && activeSessionId
+              ? (prompt) => handleEditPrompt(activeSessionId, prompt)
+              : undefined
+          }
         />
         {isLoading && <div className="text-xs text-muted-foreground animate-pulse">Thinking</div>}
       </ThreadScroller>

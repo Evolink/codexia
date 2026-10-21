@@ -42,4 +42,12 @@ describe('renameSession', () => {
     useCCStore.getState().renameSession('missing', 'new');
     expect(useCCStore.getState().sessionMessagesMap).toBe(before.sessionMessagesMap);
   });
+
+  it('keeps the given history for a branch', () => {
+    useCCStore.getState().renameSession('old', 'fork', [userMessage]);
+    const state = useCCStore.getState();
+    expect(state.activeSessionId).toBe('fork');
+    expect(state.messages).toEqual([userMessage]);
+    expect(state.sessionMessagesMap.fork).toEqual([userMessage]);
+  });
 });

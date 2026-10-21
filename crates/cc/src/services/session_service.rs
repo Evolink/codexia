@@ -239,6 +239,7 @@ pub async fn connect(params: CCConnectParams, state: &CCState) -> Result<(), Str
         session_id: params.resume_id.is_none().then(|| params.session_id.clone()),
         resume: params.resume_id,
         permission_mode,
+        forward_subagent_text: true,
         stderr_callback: Some(Arc::new(|msg| log::error!("[CC STDERR] {}", msg))),
         ..Default::default()
     };
@@ -307,6 +308,39 @@ pub async fn interrupt(session_id: &str, state: &CCState) -> Result<(), String> 
     client.interrupt().await.map_err(|e| e.to_string())
 }
 
+/// Starts a new session that branches off `session_id` after the transcript
+/// entry `at_message_uuid`; later entries are left out and the source session
+/// stays as it was. The source session's client is closed, since its card moves
+/// to the branch. Returns the branch's session id.
+pub async fn fork_session(
+    session_id: &str,
+    at_message_uuid: String,
+    options: AgentOptions,
+    state: &CCState,
+) -> Result<String, String> {
+    let fork_id = uuid::Uuid::new_v4().to_string();
+    let fork_id_arc: SessionIdArc = Arc::new(Mutex::new(fork_id.clone()));
+    let permission_mode_str = options.permission_mode.clone();
+    let mut claude_options = options.to_claude_options(Some(session_id.to_string()));
+    claude_options.continue_conversation = false;
+    claude_options.fork_session = true;
+    claude_options.resume_session_at = Some(at_message_uuid);
+    claude_options.session_id = Some(fork_id.clone());
+
+    if needs_permission_callback(permission_mode_str.as_deref()) {
+        claude_options.hooks = Some(build_permission_hooks(
+            state.clone(), fork_id_arc.clone(),
+        ));
+    }
+
+    state.session_arcs.insert(fork_id.clone(), fork_id_arc);
+    state.create_client(fork_id.clone(), claude_options, permission_mode_str).await?;
+    if let Err(err) = state.remove_client(session_id).await {
+        log::warn!("[CC] failed to close forked session {}: {}", session_id, err);
+    }
+    Ok(fork_id)
+}
+
 /// Live MCP server status of a connected session, with failure reasons. The init
 /// message only has a snapshot taken while servers may still be connecting.
 pub async fn mcp_status(
@@ -336,4 +370,37 @@ pub async fn resume_session(
     state.session_arcs.insert(session_id.clone(), session_id_arc);
     state.create_client(session_id.clone(), claude_options, permission_mode_str).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn fork_session_moves_the_card_to_a_new_client() {
+        let state = CCState::default();
+        let source = new_session(AgentOptions { cwd: "/p".into(), ..Default::default() }, &state)
+            .await
+            .unwrap();
+
+        let fork = fork_session(
+            &source,
+            "a1".to_string(),
+            AgentOptions {
+                cwd: "/p".into(),
+                permission_mode: Some("default".into()),
+                ..Default::default()
+            },
+            &state,
+        )
+        .await
+        .unwrap();
+
+        assert_ne!(fork, source);
+        assert!(state.get_client(&source).await.is_none());
+        assert!(state.get_client(&fork).await.is_some());
+        // Permission prompts for the branch report its own id.
+        let arc = state.session_arcs.get(&fork).unwrap();
+        assert_eq!(arc.lock().unwrap().as_str(), fork);
+    }
 }

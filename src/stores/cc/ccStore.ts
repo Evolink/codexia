@@ -78,10 +78,10 @@ interface CCStoreState {
   setSlashCommands: (commands: string[]) => void;
   setPendingNewSession: (session: SdkSessionInfo | null) => void;
   /**
-   * Moves a session to the id the CLI continues under after `/clear`, starting it
-   * with an empty transcript as the CLI does. No-op when `id` is unknown.
+   * Moves a session to a new id with `messages` as its transcript: empty after
+   * `/clear`, the kept history for a branch. No-op when `id` is unknown.
    */
-  renameSession: (id: string, newId: string) => void;
+  renameSession: (id: string, newId: string, messages?: CCMessage[]) => void;
 }
 
 export const useCCStore = create<CCStoreState>()(
@@ -242,7 +242,7 @@ export const useCCStore = create<CCStoreState>()(
       clearMessages: () => set({ messages: [] }),
       setSlashCommands: (commands) => set({ slashCommands: commands }),
       setPendingNewSession: (session) => set({ pendingNewSession: session }),
-      renameSession: (id, newId) =>
+      renameSession: (id, newId, messages = []) =>
         set((state) => {
           const known =
             state.activeSessionId === id ||
@@ -258,14 +258,14 @@ export const useCCStore = create<CCStoreState>()(
           return {
             activeSessionId: isActive ? newId : state.activeSessionId,
             activeSessionIds: state.activeSessionIds.map((sid) => (sid === id ? newId : sid)),
-            sessionMessagesMap: move(state.sessionMessagesMap, []),
+            sessionMessagesMap: move(state.sessionMessagesMap, messages),
             sessionLoadingMap: move(state.sessionLoadingMap),
             sessionStartTimeMap: move(state.sessionStartTimeMap),
             pendingNewSession:
               state.pendingNewSession?.session_id === id
                 ? { ...state.pendingNewSession, session_id: newId }
                 : state.pendingNewSession,
-            ...(isActive ? { messages: [] } : {}),
+            ...(isActive ? { messages } : {}),
           };
         }),
     }),

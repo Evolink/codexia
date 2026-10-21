@@ -17,7 +17,11 @@ interface CCTranscriptProps {
   items: CCRenderItem[];
   /** Renders a message shown as-is (permission request, session init, rate limit). */
   renderMessage: (index: number) => ReactNode;
+  /** Rewrites a prompt on a new branch; prompts without branch info are not editable. */
+  onEditPrompt?: (prompt: CCPromptItem) => void;
 }
+
+export type CCPromptItem = Extract<CCRenderItem, { kind: 'user' }>;
 
 function CCAssistantText({ text }: { text: string }) {
   return (
@@ -58,13 +62,20 @@ function CCStepChain({ steps, running }: { steps: CCStep[]; running: boolean }) 
  * nests under its call, and a finished turn folds its work above the final reply.
  * Each top-level row is a scroller item; user messages anchor their turn.
  */
-export function CCTranscript({ items, renderMessage }: CCTranscriptProps) {
+export function CCTranscript({ items, renderMessage, onEditPrompt }: CCTranscriptProps) {
   const { t } = useTranslation('thread');
 
   const renderItem = (item: CCRenderItem): ReactNode => {
     switch (item.kind) {
       case 'user':
-        return <UserMessage text={item.text} />;
+        return (
+          <UserMessage
+            text={item.text}
+            onEdit={
+              onEditPrompt && item.forkAt !== undefined ? () => onEditPrompt(item) : undefined
+            }
+          />
+        );
       case 'text':
         return <CCAssistantText text={item.text} />;
       case 'error':

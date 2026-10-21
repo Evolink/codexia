@@ -77,4 +77,34 @@ describe('CCTranscript', () => {
     expect(screen.getByText('Read a.ts')).toBeTruthy();
     expect(screen.getByText('It is in a.ts')).toBeTruthy();
   });
+
+  it('offers to edit a prompt only when a handler is given', () => {
+    const items = buildCCTranscript(
+      [
+        { type: 'user', text: 'first' },
+        { type: 'assistant', uuid: 'a1', message: { content: [{ type: 'text', text: 'ok' }] } },
+        { type: 'user', text: 'second' },
+      ],
+      false
+    );
+    const onEditPrompt = vi.fn();
+    const { rerender } = render(
+      <ThreadScroller turns={[]}>
+        <CCTranscript items={items} renderMessage={() => null} />
+      </ThreadScroller>
+    );
+    expect(screen.queryByRole('button', { name: 'Edit message' })).toBeNull();
+
+    rerender(
+      <ThreadScroller turns={[]}>
+        <CCTranscript items={items} renderMessage={() => null} onEditPrompt={onEditPrompt} />
+      </ThreadScroller>
+    );
+    const edits = screen.getAllByRole('button', { name: 'Edit message' });
+    expect(edits).toHaveLength(2);
+    fireEvent.click(edits[1]);
+    expect(onEditPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'second', index: 2, forkAt: 'a1' })
+    );
+  });
 });

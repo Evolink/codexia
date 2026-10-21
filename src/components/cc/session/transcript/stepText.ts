@@ -51,6 +51,8 @@ export function hasToolDetails(step: Extract<CCStep, { kind: 'tool' }>): boolean
 /** A step's trace line title: present tense while running, past tense when done. */
 export function stepTitle(step: CCStep, t: TFunction): string {
   if (step.kind === 'thinking') return t('items.thinking');
+  // A sub-agent's remark: its first line stands in as the title.
+  if (step.kind === 'text') return step.text.trim().split('\n')[0];
 
   const { block, running } = step;
   const input = block.input ?? {};
