@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use super::to_error_response;
 use super::types::{
     CcMcpAddParams, CcMcpGetParams, CcMcpListParams, CcMcpRemoveParams, CcMcpToggleParams,
@@ -31,24 +30,11 @@ pub(crate) async fn api_cc_send_message(
     AxumState(state): AxumState<WebServerState>,
     Json(params): Json<CcSendMessageParams>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let cc_state = Arc::clone(&state.cc_state);
-
     cc_message_service::send_message(
         &params.session_id,
         &params.message,
         &params.image_paths,
         state.cc_state.as_ref(),
-        move |sid, msg| match serde_json::to_value(msg) {
-            Ok(mut payload) => {
-                // Stamp the session's client key so the frontend filter matches: messages
-                // that carry no session_id, or a forked one, still reach the right card.
-                if let Some(obj) = payload.as_object_mut() {
-                    obj.insert("session_id".to_string(), serde_json::Value::String(sid.to_string()));
-                }
-                cc_state.emit("cc-message", payload);
-            }
-            Err(err) => log::error!("Failed to serialize CC message event: {}", err),
-        },
     )
     .await
     .map_err(to_error_response)?;

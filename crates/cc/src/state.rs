@@ -2,15 +2,29 @@ use codexia_shared::event_sink::EventSink;
 use claude_agent_sdk_rs::{ClaudeAgentOptions, ClaudeClient};
 use dashmap::DashMap;
 use serde_json::Value;
+use claude_agent_sdk_rs::Message;
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{oneshot, Mutex as AsyncMutex, RwLock};
+use tokio::sync::{mpsc, oneshot, Mutex as AsyncMutex, RwLock};
 
 pub type ClientId = String;
 
 /// Session-specific metadata
 pub struct SessionMetadata {
     pub permission_mode: Option<String>,
+}
+
+/// The reader of a connected session's messages. It runs for the life of the CLI
+/// process, so turns the session starts on its own (after a background agent
+/// finishes) reach the frontend too.
+#[derive(Default)]
+pub struct SessionStream {
+    /// Senders waiting for the current turn; each gets its messages up to and
+    /// including the result.
+    pub(crate) waiters: Mutex<Vec<mpsc::UnboundedSender<Message>>>,
+    /// A turn has started and not yet reported its result.
+    pub(crate) in_turn: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -22,6 +36,8 @@ pub struct CCState {
     pub session_metadata: Arc<DashMap<ClientId, SessionMetadata>>,
     /// Arc<Mutex<String>> for each session's effective ID, shared with permission hooks.
     pub session_arcs: Arc<DashMap<String, Arc<Mutex<String>>>>,
+    /// Message readers of connected sessions, by client id.
+    pub(crate) streams: Arc<DashMap<ClientId, Arc<SessionStream>>>,
     /// Event sink for emitting events to the frontend (Tauri or WebSocket).
     pub sink: Arc<dyn EventSink>,
 }
@@ -38,6 +54,7 @@ impl CCState {
             pending_permissions: Arc::new(DashMap::new()),
             session_metadata: Arc::new(DashMap::new()),
             session_arcs: Arc::new(DashMap::new()),
+            streams: Arc::new(DashMap::new()),
             sink,
         }
     }
@@ -61,6 +78,7 @@ impl CCState {
 
         // Note: we always replace the client to ensure new options (like emitter/hooks) are used.
         // If there was an existing connected client, we should probably disconnect it first.
+        self.streams.remove(&client_id);
         if let Some(old_client) = clients.get(&client_id) {
             let mut old_client = old_client.write().await;
             let _ = old_client.disconnect().await;
@@ -92,6 +110,9 @@ impl CCState {
         if let Some((_, meta)) = self.session_metadata.remove(client_id) {
             self.session_metadata.insert(new_id.to_string(), meta);
         }
+        if let Some((_, stream)) = self.streams.remove(client_id) {
+            self.streams.insert(new_id.to_string(), stream);
+        }
         if let Some((_, arc)) = self.session_arcs.remove(client_id) {
             *arc.lock().unwrap() = new_id.to_string();
             self.session_arcs.insert(new_id.to_string(), arc);
@@ -99,6 +120,9 @@ impl CCState {
     }
 
     pub async fn remove_client(&self, client_id: &str) -> Result<(), String> {
+        // Unregister the reader first: a CLI that exits because it was closed
+        // is not reported as a failed turn.
+        self.streams.remove(client_id);
         let mut clients = self.clients.lock().await;
         if let Some(client) = clients.remove(client_id) {
             let mut client = client.write().await;
