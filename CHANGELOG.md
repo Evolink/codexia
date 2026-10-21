@@ -8,17 +8,18 @@
 
 ## [0.59.0] - 2026-10-21
 
-- chore: bump version to 0.59.0 (`4cac7653`)
-- ci(release): cut release time by reusing builds and fetching keke (`d03e4656`)
-- feat(codex): end the commands an interrupted turn left running (`a83a6596`)
-- fix(codex): follow-ups for sub-agent stop and display (`5dbdf48e`)
-- fix(review): show a worktree thread's own changes in the Review tab (`08857027`)
-- fix(right-panel): show a stopped sub-agent as stopped (`30391bc3`)
-- feat(right-panel): add Agents tab for a thread's Codex sub-agents (`b1008e94`)
-- refactor: remove the Kanban tab; cap the agent card registry (`75697964`)
-- feat(review): apply or discard a thread's worktree from Git Actions (`b3f21cb2`)
-- feat(sidebar): add Active section for running and input-blocked sessions (`d05a115b`)
-- docs: expand 0.58.0 changelog with Claude Code and design changes (`bd0e9996`)
+### Features & Improvements
+- Codex: a new Agents tab in the right panel lists the sub-agents a thread spawned, with status, prompt, latest reply and a Stop action while they run.
+- Codex: stopping a turn also ends the commands it left running as background terminals; terminals you started yourself are left alone.
+- Sidebar: an Active section shows running sessions and sessions waiting for your input.
+- Review: apply or discard a thread's worktree from Git Actions.
+
+### Fixes & Maintenance
+- Review shows a worktree thread's own changes (marked with a Worktree badge) instead of the main checkout; Commit and Push are disabled there.
+- A stopped sub-agent now reads as stopped, and stopping one no longer resets the main thread's running turn.
+- A note appears next to an interrupted turn when a command it started has no result.
+- The Kanban tab is removed; the Active section and Git Actions cover it.
+- Releases build faster: the Windows portable zip reuses the Tauri build, and keke v0.1.52 is downloaded instead of compiled.
 
 ## [0.58.0] - 2026-10-21
 
