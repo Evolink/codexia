@@ -59,6 +59,44 @@ describe('collectSubagents', () => {
   });
 });
 
+describe('collectSubagents reply fallback', () => {
+  const started = item('item/completed', {
+    type: 'subAgentActivity',
+    id: 'a1',
+    kind: 'started',
+    agentThreadId: 'sub-3',
+    agentPath: 'root/worker',
+    model: null,
+    reasoningEffort: null,
+  });
+  const reply = (text: string) =>
+    item('item/completed', { type: 'agentMessage', id: `m-${text}`, text, phase: null });
+
+  it("shows the sub-agent's latest reply when the parent has no state for it", () => {
+    const [entry] = collectSubagents([started], { 'sub-3': [reply('first'), reply('a.txt: alpha')] });
+    expect(entry.message).toBe('a.txt: alpha');
+  });
+
+  it('keeps a message the parent reported', () => {
+    const wait = item('item/completed', {
+      type: 'collabAgentToolCall',
+      id: 'w1',
+      tool: 'wait',
+      status: 'completed',
+      receiverThreadIds: ['sub-3'],
+      prompt: null,
+      model: null,
+      agentsStates: { 'sub-3': { status: 'completed', message: 'from parent' } },
+    });
+    const [entry] = collectSubagents([started, wait], { 'sub-3': [reply('from child')] });
+    expect(entry.message).toBe('from parent');
+  });
+
+  it('leaves the message empty when that thread has said nothing', () => {
+    expect(collectSubagents([started], {})[0].message).toBeNull();
+  });
+});
+
 describe('effectiveStatus', () => {
   const entry = (status: SubagentEntry['status']): SubagentEntry => ({
     threadId: 's',

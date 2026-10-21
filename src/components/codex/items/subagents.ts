@@ -11,8 +11,27 @@ export interface SubagentEntry {
   model: string | null;
 }
 
-/** Sub-agents a thread spawned, with the last state each one was reported in. */
-export function collectSubagents(events: ServerNotification[]): SubagentEntry[] {
+/** What a sub-agent last said, from its own thread. */
+function lastReply(events: ServerNotification[] | undefined): string | null {
+  for (let i = (events?.length ?? 0) - 1; i >= 0; i -= 1) {
+    const event = events?.[i];
+    if (event?.method !== 'item/completed') continue;
+    if (event.params.item.type === 'agentMessage' && event.params.item.text) {
+      return event.params.item.text;
+    }
+  }
+  return null;
+}
+
+/**
+ * Sub-agents a thread spawned, with the last state each one was reported in.
+ * Codex reports a spawn as an activity item with no prompt, and the parent's wait
+ * call carries no states, so `eventsByThread` supplies what the sub-agent said.
+ */
+export function collectSubagents(
+  events: ServerNotification[],
+  eventsByThread: Record<string, ServerNotification[]> = {}
+): SubagentEntry[] {
   const byId = new Map<string, SubagentEntry>();
   const entryFor = (threadId: string): SubagentEntry => {
     let entry = byId.get(threadId);
@@ -53,6 +72,9 @@ export function collectSubagents(events: ServerNotification[]): SubagentEntry[] 
       else if (item.kind === 'completed') entry.status = 'completed';
       else if (item.kind === 'interrupted') entry.status = 'interrupted';
     }
+  }
+  for (const entry of byId.values()) {
+    entry.message ??= lastReply(eventsByThread[entry.threadId]);
   }
   return [...byId.values()];
 }

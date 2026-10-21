@@ -266,6 +266,7 @@ export const zh = {
       subAgentStarted: '子代理已启动',
       subAgentInteracted: '子代理已交互',
       subAgentInterrupted: '子代理已中断',
+      commandMayStillRun: '有命令仍在运行,可能没有被停止。',
       subAgentCompleted: '子代理已完成',
       stepsRunning: '处理中',
       stepsDone_one: '已完成 {{count}} 个步骤',

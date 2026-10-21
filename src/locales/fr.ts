@@ -273,6 +273,8 @@ export const fr = {
       subAgentStarted: 'Sous-agent démarré',
       subAgentInteracted: 'Sous-agent sollicité',
       subAgentInterrupted: 'Sous-agent interrompu',
+      commandMayStillRun:
+        "Une commande était en cours d'exécution et n'a peut-être pas été arrêtée.",
       subAgentCompleted: 'Sous-agent terminé',
       stepsRunning: 'En cours',
       stepsDone_one: 'Travail en {{count}} étape',

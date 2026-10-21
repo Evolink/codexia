@@ -268,6 +268,7 @@ export const en = {
       subAgentStarted: 'Sub-agent started',
       subAgentInteracted: 'Sub-agent interacted',
       subAgentInterrupted: 'Sub-agent interrupted',
+      commandMayStillRun: 'A command was still running and may not have stopped.',
       subAgentCompleted: 'Sub-agent completed',
       stepsRunning: 'Working',
       stepsDone_one: 'Worked in {{count}} step',

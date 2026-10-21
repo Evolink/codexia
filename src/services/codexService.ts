@@ -476,10 +476,13 @@ export const codexService = {
     return response.status;
   },
   async turnInterrupt(threadId: string, turnId: string) {
-    const set = useCodexStore.setState;
     try {
       await turnInterrupt({ threadId, turnId });
-      set({ currentTurnId: null });
+      // `currentTurnId` belongs to the viewed thread; stopping a sub-agent's turn
+      // must not clear it.
+      if (useCodexStore.getState().currentThreadId === threadId) {
+        useCodexStore.setState({ currentTurnId: null });
+      }
     } catch (error: unknown) {
       console.error('[CodexService] turnInterrupt error:', error);
       throw error;
