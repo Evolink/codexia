@@ -6,6 +6,20 @@
 > changelog. The release workflow reads the top `## [version]` section of this
 > file matching the tag being published.
 
+## [0.59.0] - 2026-10-21
+
+- chore: bump version to 0.59.0 (`4cac7653`)
+- ci(release): cut release time by reusing builds and fetching keke (`d03e4656`)
+- feat(codex): end the commands an interrupted turn left running (`a83a6596`)
+- fix(codex): follow-ups for sub-agent stop and display (`5dbdf48e`)
+- fix(review): show a worktree thread's own changes in the Review tab (`08857027`)
+- fix(right-panel): show a stopped sub-agent as stopped (`30391bc3`)
+- feat(right-panel): add Agents tab for a thread's Codex sub-agents (`b1008e94`)
+- refactor: remove the Kanban tab; cap the agent card registry (`75697964`)
+- feat(review): apply or discard a thread's worktree from Git Actions (`b3f21cb2`)
+- feat(sidebar): add Active section for running and input-blocked sessions (`d05a115b`)
+- docs: expand 0.58.0 changelog with Claude Code and design changes (`bd0e9996`)
+
 ## [0.58.0] - 2026-10-21
 
 ### Features & Improvements
