@@ -25,6 +25,7 @@ import { useLayoutStore } from '@/stores';
 import { GitActions } from './GitActions';
 import { GitStatsIndicator } from './GitStatsIndicator';
 import type { DiffSection, DiffSource } from './types';
+import { useReviewCwd } from './useReviewCwd';
 
 interface GitDiffTopBarProps {
   cwd: string | null;
@@ -61,6 +62,7 @@ export function GitDiffTopBar({
   onToggleAllDiffs,
 }: GitDiffTopBarProps) {
   const { diffWordWrap, setDiffWordWrap, diffSplitMode, setDiffSplitMode } = useLayoutStore();
+  const { inWorktree } = useReviewCwd();
 
   return (
     <div className="border-b border-white/10 flex items-center gap-2">
@@ -85,6 +87,15 @@ export function GitDiffTopBar({
           </SelectContent>
         </Select>
       </div>
+
+      {inWorktree && (
+        <span
+          className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+          title="Showing this thread's worktree. Apply it from Git Actions to bring the changes into the main checkout."
+        >
+          Worktree
+        </span>
+      )}
 
       {diffSource !== 'latest-turn' && <GitStatsIndicator diffSection={selectedDiffSection} />}
 

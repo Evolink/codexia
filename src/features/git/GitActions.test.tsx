@@ -66,4 +66,24 @@ describe('GitActions worktree', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() => expect(git.gitRemoveWorktree).toHaveBeenCalledWith('/work/app', 'wt-1'));
   });
+
+  it('disables Commit and Push while reviewing a worktree', async () => {
+    render(<GitActions />);
+    await openMenu();
+    const commit = await screen.findByRole('menuitem', { name: 'Commit' });
+    expect(commit.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('menuitem', { name: 'Push' }).getAttribute('aria-disabled')).toBe(
+      'true'
+    );
+  });
+
+  it('keeps Commit and Push for a thread in the main checkout', async () => {
+    useAgentCenterStore.setState({
+      cards: [{ kind: 'codex', id: 't1', preview: 'x', cwd: '/work/app' }],
+    });
+    render(<GitActions />);
+    await openMenu();
+    const commit = await screen.findByRole('menuitem', { name: 'Commit' });
+    expect(commit.getAttribute('aria-disabled')).toBeNull();
+  });
 });
