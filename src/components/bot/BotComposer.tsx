@@ -1,6 +1,8 @@
+import { cn } from 'cn';
 import { ArrowUp, Square } from 'lucide-react';
 import { useState } from 'react';
 import { useAcpAgents } from '@/components/acp/useAcpAgents';
+import { THREAD_COLUMN } from '@/components/common/threadColumn';
 import { Button } from '@/components/ui/button';
 import { acpCancel, acpPrompt } from '@/services/apiAdapt/acp';
 import type { Bot } from '@/services/apiAdapt/bots';
@@ -95,8 +97,8 @@ export function BotComposer({ bot }: { bot: Bot }) {
   };
 
   return (
-    <div className="shrink-0 border-t bg-background p-3">
-      <div className="flex items-end gap-2 rounded-2xl border px-3 py-2">
+    <div className={cn(THREAD_COLUMN, 'shrink-0 pt-1 pb-3')}>
+      <div className="flex items-end gap-2 rounded-2xl border bg-background px-3 py-2 shadow-sm focus-within:ring-1 focus-within:ring-ring transition-shadow">
         <BotToolsMenu key={bot.id} bot={bot} />
         <textarea
           value={text}

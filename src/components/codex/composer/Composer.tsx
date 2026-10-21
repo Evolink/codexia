@@ -228,7 +228,7 @@ export function Composer({ overrideSend, onAfterSend }: ComposerProps) {
 
         <QueuedMessages threadId={currentThreadId} running={threadStatus?.type === 'active'} />
 
-        <div className="max-w-3xl mx-2 sm:mx-auto border rounded-xl bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring transition-all overflow-hidden">
+        <div className="border rounded-xl bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring transition-all overflow-hidden">
           {images.length > 0 && (
             <div className="flex gap-2 p-3 pb-0 overflow-x-auto">
               {images.map((path, index) => (

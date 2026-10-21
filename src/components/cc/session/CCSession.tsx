@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { CCMessage } from '@/components/cc/session/messages';
 import { PermissionRequestCard } from '@/components/cc/session/messages/PermissionRequestCard';
-import { ThreadScroller } from '@/components/common';
+import { THREAD_COLUMN, ThreadScroller } from '@/components/common';
 import { useCCSessionManager } from '@/hooks/useCCSessionManager';
 import { ccGetSessionMessages, ccResumeSession } from '@/services/apiAdapt/cc';
 import { useCCStore } from '@/stores/cc';
@@ -147,7 +147,7 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
       </ThreadScroller>
 
       {pendingPermissionIdx !== -1 && (
-        <div className="mx-auto w-full max-w-4xl">
+        <div className={THREAD_COLUMN}>
           <PermissionRequestCard
             msg={messages[pendingPermissionIdx] as PermissionRequestMessage}
             onResolve={handleResolvePermission}

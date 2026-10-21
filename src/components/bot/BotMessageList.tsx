@@ -33,7 +33,7 @@ export function BotMessageList({ bot }: { bot: Bot }) {
   const turns = acpUserTurns(items);
 
   return (
-    <ThreadScroller turns={turns} className="flex-1" contentClassName="px-4 py-3 text-sm">
+    <ThreadScroller turns={turns} className="flex-1" contentClassName="text-sm">
       {error && (
         <div role="alert" className="flex items-center gap-2 text-xs text-destructive">
           {error}

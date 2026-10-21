@@ -44,7 +44,7 @@ export default function AcpSession() {
 
   return (
     <div className="flex flex-col min-h-0 h-full">
-      <ThreadScroller turns={turns} className="flex-1" contentClassName="p-3 text-sm">
+      <ThreadScroller turns={turns} className="flex-1" contentClassName="text-sm">
         {!sessionId && authMethods.length > 0 && (
           <div className="rounded-md border p-3 space-y-2">
             <div className="text-xs text-muted-foreground">

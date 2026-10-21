@@ -69,7 +69,7 @@ export function QueuedMessages({ threadId, running }: QueuedMessagesProps) {
   };
 
   return (
-    <ul aria-label="Queued messages" className="max-w-3xl mx-2 sm:mx-auto mb-1 space-y-0.5">
+    <ul aria-label="Queued messages" className="mb-1 space-y-0.5">
       {items.map((item, index) => {
         const label = inputLabel(item.input);
         return (

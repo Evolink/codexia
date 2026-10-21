@@ -112,7 +112,7 @@ export function CodexThread({ threadId }: CodexThreadProps = {}) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full">
-      <ThreadScroller turns={turns} className="flex-1" contentClassName="thread-surface max-w-3xl">
+      <ThreadScroller turns={turns} className="flex-1" contentClassName="thread-surface">
         {renderedEvents.map((entry) => (
           <MessageScrollerItem
             key={entry.key}

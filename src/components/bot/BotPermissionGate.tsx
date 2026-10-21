@@ -1,4 +1,6 @@
+import { cn } from 'cn';
 import { useEffect, useRef } from 'react';
+import { THREAD_COLUMN } from '@/components/common/threadColumn';
 import { Button } from '@/components/ui/button';
 import { acpRespondPermission } from '@/services/apiAdapt/acp';
 import { type Bot, parseBotList, updateBot } from '@/services/apiAdapt/bots';
@@ -69,22 +71,24 @@ export function BotPermissionGate({ bot }: { bot: Bot }) {
   };
 
   return (
-    <div className="shrink-0 border-t bg-muted/30 p-3 space-y-2">
-      <div className="text-sm">{permission.title}</div>
-      <div className="flex flex-wrap items-center gap-2">
-        {permission.options.map((option) => (
-          <Button key={option.optionId} size="sm" onClick={() => respond(option.optionId)}>
-            {option.name}
+    <div className={cn(THREAD_COLUMN, 'shrink-0 pb-2')}>
+      <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
+        <div className="text-sm">{permission.title}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {permission.options.map((option) => (
+            <Button key={option.optionId} size="sm" onClick={() => respond(option.optionId)}>
+              {option.name}
+            </Button>
+          ))}
+          {!permission.personRequired && key && (
+            <Button size="sm" variant="outline" title={key} onClick={() => allowAlways(key)}>
+              Always allow {approvalLabel(key)}
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => respond(null)}>
+            Cancel
           </Button>
-        ))}
-        {!permission.personRequired && key && (
-          <Button size="sm" variant="outline" title={key} onClick={() => allowAlways(key)}>
-            Always allow {approvalLabel(key)}
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" onClick={() => respond(null)}>
-          Cancel
-        </Button>
+        </div>
       </div>
     </div>
   );

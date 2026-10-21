@@ -1,6 +1,8 @@
+import { cn } from 'cn';
 import { CalendarClock, Settings } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAcpEvents } from '@/components/acp/useAcpEvents';
+import { THREAD_COLUMN } from '@/components/common/threadColumn';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
@@ -130,7 +132,9 @@ export default function BotChatView() {
         <>
           <BotMessageList bot={bot} />
           <BotInbox botId={bot.id} />
-          <BotWaitingApprovals bot={bot} />
+          <div className={cn(THREAD_COLUMN, 'shrink-0')}>
+            <BotWaitingApprovals bot={bot} className="mb-2 rounded-xl border bg-amber-500/5 p-3" />
+          </div>
           <BotPermissionGate bot={bot} />
           <BotComposer bot={bot} />
         </>
