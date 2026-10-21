@@ -7,11 +7,7 @@ import { ccGetSessionMessages, ccResumeSession } from '@/services/apiAdapt/cc';
 import { useCCStore } from '@/stores/cc';
 import { useCCSettingsStore } from '@/stores/settings';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
-import {
-  useCCPermissionListener,
-  useCCSessionListener,
-  useCCSessionRenameListener,
-} from '../hooks';
+import { useCCPermissionListener, useCCSessionListener } from '../hooks';
 import type { PermissionRequestMessage } from '../types/messages';
 import type { PermissionDecision } from '../types/permission';
 import { fromSdkMessages } from '../utils/fromSdkMessages';
@@ -128,7 +124,6 @@ export default function CCSession({ sessionId, disableListener = false }: CCSess
 
   useCCSessionListener({ sessionId, disabled: disableListener });
   useCCPermissionListener({ sessionId, disabled: disableListener });
-  useCCSessionRenameListener({ sessionId, disabled: disableListener });
 
   return (
     <div className="flex flex-col h-full min-h-0 w-full">
