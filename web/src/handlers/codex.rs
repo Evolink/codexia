@@ -66,6 +66,18 @@ pub(crate) async fn api_revert_thread(
     Ok(Json(result))
 }
 
+pub(crate) async fn api_approve_guardian_denied_action(
+    AxumState(state): AxumState<WebServerState>,
+    Json(params): Json<Value>,
+) -> Result<Json<Value>, ErrorResponse> {
+    let result = require_codex(&state)?
+        .codex
+        .send_request("thread/approveGuardianDeniedAction", params)
+        .await
+        .map_err(to_error_response)?;
+    Ok(Json(result))
+}
+
 pub(crate) async fn api_list_threads(
     AxumState(state): AxumState<WebServerState>,
     Json(params): Json<Value>,

@@ -13,7 +13,7 @@ import type {
   UserInput,
 } from '@/bindings/v2';
 import {
-  approvalsReviewerFor,
+  ACCESS_MODES,
   useCodexStore,
   useConfigStore,
   useThreadQueueStore,
@@ -248,13 +248,13 @@ export const codexService = {
       const {
         model,
         modelProvider,
-        approvalPolicy,
-        sandbox,
+        accessMode,
         reasoningEffort,
         webSearchRequest,
         threadCwdMode,
         collaborationMode,
       } = useConfigStore.getState();
+      const { sandbox, approvalPolicy, approvalsReviewer } = ACCESS_MODES[accessMode];
       const { cwd } = useWorkspaceStore.getState();
       let threadCwd = cwd;
       if (threadCwdMode === 'worktree' && cwd) {
@@ -281,7 +281,7 @@ export const codexService = {
         cwd: threadCwd,
         ...(projectId ? { projectId } : {}),
         approvalPolicy,
-        approvalsReviewer: approvalsReviewerFor(sandbox),
+        approvalsReviewer,
         sandbox,
         baseInstructions: null,
         developerInstructions: null,
@@ -364,15 +364,15 @@ export const codexService = {
     try {
       const userInputs = buildUserInputs(input, images);
 
-      const { model, reasoningEffort, approvalPolicy, sandbox, webSearchRequest } =
-        useConfigStore.getState();
+      const { model, reasoningEffort, accessMode, webSearchRequest } = useConfigStore.getState();
+      const { sandbox, approvalPolicy, approvalsReviewer } = ACCESS_MODES[accessMode];
 
       const response = await turnStart({
         threadId,
         input: userInputs,
         cwd: resolveThreadCwd(threadId),
         approvalPolicy,
-        approvalsReviewer: approvalsReviewerFor(sandbox),
+        approvalsReviewer,
         sandboxPolicy: sandboxModeToPolicy(sandbox, webSearchRequest),
         model: model || null,
         effort: reasoningEffort ?? null,

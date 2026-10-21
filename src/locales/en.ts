@@ -74,7 +74,7 @@ export const en = {
     askApproval: 'Ask for approval',
     approvalForMe: 'Approve for me',
     fullAccess: 'Full Access',
-    askApprovalDescription: 'Read files; ask before edits and commands',
+    askApprovalDescription: 'Ask before editing outside the workspace or using the internet',
     approvalForMeDescription: 'An AI reviewer approves or blocks risky actions',
     fullAccessDescription: 'No sandbox and no approvals',
     goal: 'Goal',
@@ -179,6 +179,9 @@ export const en = {
       approveForSession: 'Approve for Session',
     },
     autoReview: {
+      approveOnce: 'Approve once',
+      approvedOnce: 'Approved for one retry',
+      approveOnceHint: 'Codex sees your approval; the retry is still reviewed',
       reviewing: 'Reviewing {{action}}',
       reviewingMany: 'Reviewing {{count}} approval requests',
       denied: 'Auto-review denied',

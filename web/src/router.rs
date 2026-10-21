@@ -60,7 +60,7 @@ use super::{
         api_respond_file_change_approval, api_respond_mcp_elicitation,
         api_respond_permissions_approval, api_respond_user_input,
         api_resume_thread,
-        api_revert_thread, api_fork_thread,
+        api_revert_thread, api_fork_thread, api_approve_guardian_denied_action,
         api_search_files, api_search_files_by_name, api_skills_config_write, api_skills_list, api_start_review,
         api_start_thread, api_watch_directory, api_unwatch_directory,
         api_mcp_server_oauth_login, api_list_mcp_server_status,
@@ -321,6 +321,10 @@ pub fn create_router(state: WebServerState) -> Router {
             post(api_respond_permissions_approval),
         )
         .route("/api/codex/review/start", post(api_start_review))
+        .route(
+            "/api/codex/thread/approve-denied-action",
+            post(api_approve_guardian_denied_action),
+        )
         .route("/api/filesystem/read-directory", post(api_read_directory))
         .route("/api/openapp/check-app-installed", post(api_check_app_installed))
         .route("/api/openapp/open-workspace-in", post(api_open_workspace_in))

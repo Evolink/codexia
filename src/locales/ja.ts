@@ -166,6 +166,9 @@ export const ja = {
       approveForSession: 'このセッションで承認',
     },
     autoReview: {
+      approveOnce: '一度だけ承認',
+      approvedOnce: '再試行を一度承認済み',
+      approveOnceHint: 'Codex に承認が伝わります。再試行も審査されます',
       reviewing: '{{action}} を審査中',
       reviewingMany: '{{count}} 件の承認リクエストを審査中',
       denied: '自動審査で拒否',

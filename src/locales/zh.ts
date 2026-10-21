@@ -74,7 +74,7 @@ export const zh = {
     askApproval: '请示批准',
     approvalForMe: '替我批准',
     fullAccess: '完全访问',
-    askApprovalDescription: '只读文件，编辑和运行命令前先询问',
+    askApprovalDescription: '编辑工作区外的文件或联网前先询问',
     approvalForMeDescription: '由 AI 审查员批准或拦截有风险的操作',
     fullAccessDescription: '无沙箱，不需要批准',
     goal: '目标',
@@ -177,6 +177,9 @@ export const zh = {
       approveForSession: '本会话内批准',
     },
     autoReview: {
+      approveOnce: '批准一次',
+      approvedOnce: '已批准重试一次',
+      approveOnceHint: 'Codex 会看到你的批准；重试仍会再次审查',
       reviewing: '正在审查 {{action}}',
       reviewingMany: '正在审查 {{count}} 个批准请求',
       denied: '自动审查已拒绝',

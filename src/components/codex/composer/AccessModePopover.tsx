@@ -1,7 +1,6 @@
 import { AlertTriangle, Bot, Check, Hand, ListChecks } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { SandboxMode } from '@/bindings/v2';
-import { useCodexStore, useConfigStore } from '@/components/codex/stores';
+import { type AccessMode, useCodexStore, useConfigStore } from '@/components/codex/stores';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -13,15 +12,15 @@ import { useComposerToolbarNarrow } from './ComposerToolbarContext';
 
 const ACCESS_MODE_OPTIONS: Array<{
   label: string;
-  sandbox: SandboxMode;
+  mode: AccessMode;
   icon: typeof Hand;
   textColor: string;
 }> = [
-  { label: 'askApproval', sandbox: 'read-only', icon: Hand, textColor: 'text-muted-500' },
-  { label: 'approvalForMe', sandbox: 'workspace-write', icon: Bot, textColor: 'text-orange-400' },
+  { label: 'askApproval', mode: 'ask', icon: Hand, textColor: 'text-muted-500' },
+  { label: 'approvalForMe', mode: 'auto', icon: Bot, textColor: 'text-orange-400' },
   {
     label: 'fullAccess',
-    sandbox: 'danger-full-access',
+    mode: 'full',
     icon: AlertTriangle,
     textColor: 'text-orange-600',
   },
@@ -29,7 +28,7 @@ const ACCESS_MODE_OPTIONS: Array<{
 
 export function AccessModePopover() {
   const { t } = useTranslation('composer');
-  const { sandbox, setAccessMode, collaborationMode, setCollaborationMode } = useConfigStore();
+  const { accessMode, setAccessMode, collaborationMode, setCollaborationMode } = useConfigStore();
   const { triggerInputFocus } = useCodexStore();
   const isNarrow = useComposerToolbarNarrow();
 
@@ -37,7 +36,7 @@ export function AccessModePopover() {
     triggerInputFocus();
   };
   const selected =
-    ACCESS_MODE_OPTIONS.find((item) => item.sandbox === sandbox) ?? ACCESS_MODE_OPTIONS[0];
+    ACCESS_MODE_OPTIONS.find((item) => item.mode === accessMode) ?? ACCESS_MODE_OPTIONS[0];
   const displayLabel = collaborationMode === 'plan' ? 'plan' : selected.label;
   const DisplayIcon = collaborationMode === 'plan' ? ListChecks : selected.icon;
 
@@ -69,13 +68,13 @@ export function AccessModePopover() {
 
           {ACCESS_MODE_OPTIONS.map((option) => {
             const Icon = option.icon;
-            const isActive = collaborationMode !== 'plan' && option.sandbox === sandbox;
+            const isActive = collaborationMode !== 'plan' && option.mode === accessMode;
 
             return (
               <DropdownMenuItem
-                key={option.sandbox}
+                key={option.mode}
                 onClick={() => {
-                  setAccessMode(option.sandbox);
+                  setAccessMode(option.mode);
                   setCollaborationMode('default');
                   closeAndFocus();
                 }}

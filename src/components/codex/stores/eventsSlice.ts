@@ -13,6 +13,7 @@ export const createEventsSlice: StateCreator<CodexStore, [], [], EventsSlice> = 
   commandDurationMap: {},
   retryNoticeMap: {},
   pendingReviewMap: {},
+  approvedDenialIds: {},
   tokenUsageMap: {},
   goalMap: {},
   goalEnabled: false,
@@ -173,6 +174,12 @@ export const createEventsSlice: StateCreator<CodexStore, [], [], EventsSlice> = 
         goalMap,
       };
     });
+  },
+
+  markDenialApproved: (reviewId: string) => {
+    set((state: CodexStore) => ({
+      approvedDenialIds: { ...state.approvedDenialIds, [reviewId]: true },
+    }));
   },
 
   setTokenUsage: (threadId: string, data: ThreadTokenUsage) => {

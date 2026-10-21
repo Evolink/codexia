@@ -76,7 +76,8 @@ export const fr = {
     askApproval: "Demander l'approbation",
     approvalForMe: 'Approuver pour moi',
     fullAccess: 'Accès complet',
-    askApprovalDescription: 'Lecture seule ; demander avant les modifications et commandes',
+    askApprovalDescription:
+      'Demander avant de modifier hors de l’espace de travail ou d’utiliser Internet',
     approvalForMeDescription: 'Un réviseur IA approuve ou bloque les actions risquées',
     fullAccessDescription: 'Sans bac à sable ni approbation',
     goal: 'Objectif',
@@ -182,6 +183,9 @@ export const fr = {
       approveForSession: 'Approuver pour la session',
     },
     autoReview: {
+      approveOnce: 'Approuver une fois',
+      approvedOnce: 'Approuvé pour un nouvel essai',
+      approveOnceHint: 'Codex voit votre approbation ; le nouvel essai reste révisé',
       reviewing: 'Révision : {{action}}',
       reviewingMany: 'Révision de {{count}} demandes d’approbation',
       denied: 'Refusé par la révision auto',

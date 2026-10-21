@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import '@/lib/i18n';
 import type { ServerNotification } from '@/bindings';
 import type { ThreadItem } from '@/bindings/v2';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { deriveRenderItems } from '../thread/deriveRenderItems';
 import { EventItem } from './EventItem';
 import { ThreadStepChain } from './ThreadStepChain';
@@ -305,7 +306,11 @@ describe('EventItem auto-review decisions', () => {
     }) as unknown as ServerNotification;
 
   it('shows a denial on one line and keeps the rationale collapsed', () => {
-    render(<EventItem event={decision('denied', 'Unknown host')} />);
+    render(
+      <TooltipProvider>
+        <EventItem event={decision('denied', 'Unknown host')} />
+      </TooltipProvider>
+    );
 
     const toggle = screen.getByRole('button', { name: /Auto-review denied/ });
     expect(toggle.textContent).toContain('network access to evil.example');
