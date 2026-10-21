@@ -4,9 +4,9 @@ use dashmap::DashMap;
 use serde_json::Value;
 use claude_agent_sdk_rs::Message;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Arc, Mutex};
-use tokio::sync::{mpsc, oneshot, Mutex as AsyncMutex, RwLock};
+use tokio::sync::{mpsc, oneshot, watch, Mutex as AsyncMutex, RwLock};
 
 pub type ClientId = String;
 
@@ -18,13 +18,30 @@ pub struct SessionMetadata {
 /// The reader of a connected session's messages. It runs for the life of the CLI
 /// process, so turns the session starts on its own (after a background agent
 /// finishes) reach the frontend too.
-#[derive(Default)]
 pub struct SessionStream {
     /// Senders waiting for the current turn; each gets its messages up to and
     /// including the result.
     pub(crate) waiters: Mutex<Vec<mpsc::UnboundedSender<Message>>>,
     /// A turn has started and not yet reported its result.
     pub(crate) in_turn: AtomicBool,
+    /// Background tasks (agents, shells) the CLI reports as still running.
+    pub(crate) background_tasks: AtomicUsize,
+    /// The CLI has exited.
+    pub(crate) closed: AtomicBool,
+    /// Bumped on every message and when the CLI exits.
+    pub(crate) activity: watch::Sender<u64>,
+}
+
+impl Default for SessionStream {
+    fn default() -> Self {
+        Self {
+            waiters: Mutex::default(),
+            in_turn: AtomicBool::default(),
+            background_tasks: AtomicUsize::default(),
+            closed: AtomicBool::default(),
+            activity: watch::Sender::new(0),
+        }
+    }
 }
 
 #[derive(Clone)]

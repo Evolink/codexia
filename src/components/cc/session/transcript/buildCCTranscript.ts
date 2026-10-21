@@ -227,11 +227,14 @@ export function buildCCTranscript(
     }
   });
 
-  // Split into turns at each user prompt.
+  // Split into turns at each user prompt, and after each result: the CLI starts
+  // a turn of its own once a background agent finishes.
   const turns: CCMessage[][] = [];
+  let ended = false;
   for (const msg of topLevel) {
-    if ((msg.type === 'user' && msg.text) || turns.length === 0) turns.push([]);
+    if ((msg.type === 'user' && msg.text) || turns.length === 0 || ended) turns.push([]);
     turns[turns.length - 1].push(msg);
+    ended = msg.type === 'result';
   }
 
   return turns.flatMap((turnMessages, turnIndex) => {

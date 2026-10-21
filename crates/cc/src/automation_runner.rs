@@ -3,12 +3,19 @@
 use async_trait::async_trait;
 use claude_agent_sdk_rs::Message;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use uuid::Uuid;
 
 use codexia_shared::agent_runner::{AgentRunOutcome, AgentRunSpec, AgentRunner};
 
 use crate::services::{message_service, session_service};
 use crate::{CCConnectParams, CCState};
+
+/// How long a session must stay quiet, once its work is done, to count as idle.
+const IDLE_QUIET: Duration = Duration::from_secs(2);
+/// Longest wait for background work after the turn ends; a background shell
+/// such as a dev server may never finish.
+const MAX_BACKGROUND_WAIT: Duration = Duration::from_secs(15 * 60);
 
 pub struct CcAgentRunner {
     cc_state: CCState,
@@ -78,7 +85,29 @@ impl AgentRunner for CcAgentRunner {
         )
         .await;
 
-        let final_key = final_key.lock().unwrap().clone();
+        // Background agents keep working after the turn's result, and the CLI
+        // reports their outcome in a turn of its own; closing now would stop them.
+        if result.is_ok() {
+            let key = final_key.lock().unwrap().clone();
+            let idle = message_service::wait_until_idle(&key, &self.cc_state, IDLE_QUIET);
+            if tokio::time::timeout(MAX_BACKGROUND_WAIT, idle).await.is_err() {
+                log::warn!(
+                    "[CC automation] session {} still busy after {:?}; closing it",
+                    key,
+                    MAX_BACKGROUND_WAIT
+                );
+            }
+        }
+
+        // A `/clear` turn moves the client; the id arc follows it.
+        let final_key = {
+            let key = final_key.lock().unwrap().clone();
+            self.cc_state
+                .session_arcs
+                .get(&key)
+                .map(|arc| arc.lock().unwrap().clone())
+                .unwrap_or(key)
+        };
         if let Err(err) = session_service::disconnect(final_key.as_str(), &self.cc_state).await {
             log::warn!(
                 "failed to disconnect cc session {} for automation '{}': {}",
