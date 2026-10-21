@@ -22,6 +22,7 @@ import { useAcpStore } from '@/stores/useAcpStore';
 import { useAgentSettingsStore } from '@/stores/useAgentSettingsStore';
 import { UpdateIndicator } from '../../features/UpdateIndicator';
 import { SessionManagerDialog } from '../common/SessionManagerDialog';
+import { SideBarActiveSessions } from './SideBarActiveSessions';
 import { SideBarAgentHeader, SideBarAgentList, SideBarProjectActions } from './SideBarAgentPane';
 import { SideBarPinnedList } from './SideBarPinnedList';
 import { SideBarRecentChats } from './SideBarRecentChats';
@@ -113,6 +114,8 @@ export function AppSideBar() {
           >
             <SideBarBotPane />
           </SideBarSection>
+
+          <SideBarActiveSessions />
 
           <SideBarPinnedList />
 
