@@ -9,14 +9,23 @@
 ## [0.58.0] - 2026-10-21
 
 ### Features & Improvements
-- Approval prompts are a shared card in the composer; Codex "Approve for me" goes through Codex auto-review, and permission presets match Codex with a one-time retry after a denial.
-- Codex shows thread writer conflicts in the composer.
-- Claude Code sessions run under Codexia's session id and follow `/clear`; a past prompt can be edited on a branch; sub-agent text is shown; MCP servers and plugins that are not working are listed.
+- Claude Code overhaul: sessions run under Codexia's own session id and follow `/clear`, so the transcript, the live card and the session list stay in sync.
+- Claude Code: edit a past prompt to branch the conversation; the original session is kept intact and the prompt returns to the composer.
+- Claude Code: sub-agents nest under their Task call in the trace, with their prompt, steps and report.
+- Claude Code: a composer chip lists MCP servers and plugins that are not working, with the reason and a link to Connectors.
+- Claude Code: background agents keep an automation running until they finish, and their turns show in the transcript.
+- A shared approval card for Codex, Claude Code and ACP, modeled on the Codex app: the reason as the title, the command under review, Deny (Esc) and a split "Allow once" (Enter) button. Answered requests collapse into a one-line trace row.
+- Codex: "Approve for me" runs through Codex auto-review, with an "Approve once" retry after a denial; permission presets match Codex.
+- Codex: a thread owned by another client opens read-only, with Retry and Fork chat in the composer.
 - Connectors: Keenable search and Cohesivity added; brand icons in the connector registry; the catalog moved to `registry/` in MCP Linker `server.json` format.
 
+### Design
+- One thread column (`max-w-3xl`) for messages, composers, permission cards and bot chat, so edges line up across Claude Code, Codex, ACP and bots.
+- The session, tools and model init card is removed from Claude Code transcripts for a quieter stream.
+
 ### Fixes & Maintenance
-- Thread messages and composers share one centered column.
-- Claude Code: background agents finish in automations and show their turns; the session init card is removed; a session keeps reading between turns; renames carry on the message stream.
+- Claude Code transcripts keep reading a session between turns, so follow-up messages from background agents and permission requests reach the screen; the session list and prompts no longer stall in the browser.
+- Claude Code SDK upgraded to 0.9.1.
 - CI skips Rust or frontend jobs when their files are unchanged and uses Rust 1.99.1.
 - Vite, Tailwind and SWC plugins bumped to clear build warnings; `just dev-web` rebuilds the backend when `web/` changes.
 
