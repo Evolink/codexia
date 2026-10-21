@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useReviewCwd } from '@/features/git/useReviewCwd';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useGitWatch } from '@/hooks/useGitWatch';
 import { useLayoutStore, useWorkspaceStore } from '@/stores';
@@ -18,7 +19,9 @@ const TerminalPanel = lazy(() =>
 
 export function RightPanel() {
   const { activeRightPanelTab, openRightPanelTabs } = useLayoutStore();
-  const { cwd } = useWorkspaceStore();
+  const { cwd: workspaceCwd } = useWorkspaceStore();
+  // Git state follows the checkout under review; the other panels stay on the project.
+  const { cwd } = useReviewCwd();
   const { refreshStats } = useGitStatsStore();
   const isMobile = useIsMobile();
   const [webPreviewUrl, setWebPreviewUrl] = useState('');
@@ -48,12 +51,12 @@ export function RightPanel() {
     let cancelled = false;
 
     const loadWebPreviewUrl = async () => {
-      if (!cwd) {
+      if (!workspaceCwd) {
         if (!cancelled) setWebPreviewUrl('');
         return;
       }
 
-      const framework = await detectWebFramework(cwd);
+      const framework = await detectWebFramework(workspaceCwd);
       if (!cancelled) {
         setWebPreviewUrl(framework?.devUrl ?? '');
       }
@@ -64,7 +67,7 @@ export function RightPanel() {
     return () => {
       cancelled = true;
     };
-  }, [cwd]);
+  }, [workspaceCwd]);
 
   return (
     <div

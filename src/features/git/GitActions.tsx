@@ -33,6 +33,7 @@ import { useCCStore } from '@/stores/cc';
 import { useGitStatsStore } from '@/stores/useGitStatsStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { GitCommitDialog } from './GitCommitDialog';
+import { useReviewCwd } from './useReviewCwd';
 
 /** Worktree of the thread being viewed, if it runs in one. */
 function useCurrentWorktree(cwd: string | null) {
@@ -67,6 +68,8 @@ function useCurrentWorktree(cwd: string | null) {
 
 export function GitActions() {
   const { cwd } = useWorkspaceStore();
+  // Stats describe the checkout under review, which is the worktree for a worktree thread.
+  const { cwd: reviewCwd, inWorktree } = useReviewCwd();
   const { refreshStats } = useGitStatsStore();
   const { toast } = useToast();
   const worktree = useCurrentWorktree(cwd);
@@ -80,7 +83,8 @@ export function GitActions() {
       const result = await gitApplyWorktreeChanges(cwd, worktree.key);
       await gitRemoveWorktree(cwd, worktree.key);
       worktree.detach();
-      refreshGitStats();
+      // Review is about to move back to the main checkout, which now has the changes.
+      void refreshStats(cwd);
       toast.success('Applied worktree changes', {
         description: `${result.changed_files} file${result.changed_files === 1 ? '' : 's'} merged into the main checkout`,
       });
@@ -101,9 +105,9 @@ export function GitActions() {
   };
 
   const refreshGitStats = useCallback(() => {
-    if (!cwd) return;
-    void refreshStats(cwd);
-  }, [cwd, refreshStats]);
+    if (!reviewCwd) return;
+    void refreshStats(reviewCwd);
+  }, [reviewCwd, refreshStats]);
 
   const confirmGitCommit = async (message: string) => {
     if (!cwd) return;
@@ -154,13 +158,18 @@ export function GitActions() {
 
           <DropdownMenuItem
             className="gap-2 text-xs cursor-pointer"
+            disabled={inWorktree}
             onClick={() => setIsCommitDialogOpen(true)}
           >
             <GitCommit className="size-3.5 text-primary" />
             <span>Commit</span>
           </DropdownMenuItem>
 
-          <DropdownMenuItem className="gap-2 text-xs cursor-pointer" onClick={handleGitPush}>
+          <DropdownMenuItem
+            className="gap-2 text-xs cursor-pointer"
+            disabled={inWorktree}
+            onClick={handleGitPush}
+          >
             <CloudUpload className="size-3.5 text-primary" />
             <span>Push</span>
           </DropdownMenuItem>
