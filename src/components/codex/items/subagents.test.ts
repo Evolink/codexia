@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerNotification } from '@/bindings';
-import { collectSubagents } from './subagents';
+import { collectSubagents, effectiveStatus, type SubagentEntry } from './subagents';
 
 const item = (method: 'item/started' | 'item/completed', value: object) =>
   ({ method, params: { threadId: 'main', turnId: 't', item: value } }) as unknown as ServerNotification;
@@ -56,5 +56,37 @@ describe('collectSubagents', () => {
     ];
     const [entry] = collectSubagents(events);
     expect(entry).toMatchObject({ threadId: 'sub-2', status: 'running', agentPath: 'root/reviewer' });
+  });
+});
+
+describe('effectiveStatus', () => {
+  const entry = (status: SubagentEntry['status']): SubagentEntry => ({
+    threadId: 's',
+    status,
+    message: null,
+    prompt: null,
+    agentPath: null,
+    model: null,
+  });
+  const timing = (status: 'inProgress' | 'completed' | 'interrupted' | 'failed') => ({
+    turnId: 't',
+    startedAtMs: 0,
+    durationMs: null,
+    status,
+  });
+
+  it('shows a stopped sub-agent as stopped before the parent hears about it', () => {
+    expect(effectiveStatus(entry('running'), timing('interrupted'))).toBe('interrupted');
+    expect(effectiveStatus(entry('running'), timing('failed'))).toBe('errored');
+  });
+
+  it('keeps the reported state while the sub-agent turn runs or is unknown', () => {
+    expect(effectiveStatus(entry('running'), timing('inProgress'))).toBe('running');
+    expect(effectiveStatus(entry('running'), undefined)).toBe('running');
+  });
+
+  it('never overrides a final reported state', () => {
+    expect(effectiveStatus(entry('completed'), timing('interrupted'))).toBe('completed');
+    expect(effectiveStatus(entry('errored'), timing('completed'))).toBe('errored');
   });
 });

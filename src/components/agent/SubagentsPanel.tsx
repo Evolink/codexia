@@ -1,7 +1,7 @@
 import { Bot, Square } from 'lucide-react';
 import { useMemo } from 'react';
 import type { CollabAgentStatus } from '@/bindings/v2';
-import { collectSubagents } from '@/components/codex/items/subagents';
+import { collectSubagents, effectiveStatus } from '@/components/codex/items/subagents';
 import { useCodexStore } from '@/components/codex/stores';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -45,7 +45,9 @@ export function SubagentsPanel() {
   return (
     <div className="flex h-full flex-col gap-1 overflow-y-auto p-2">
       {subagents.map((agent) => {
-        const turnId = getCodexActiveTurnId(turnTimingMap[agent.threadId]);
+        const timing = turnTimingMap[agent.threadId];
+        const turnId = getCodexActiveTurnId(timing);
+        const status = effectiveStatus(agent, timing);
         const title = agent.agentPath || `…${agent.threadId.slice(-8)}`;
         return (
           <div key={agent.threadId} className="flex flex-col gap-1 rounded-md border p-2">
@@ -54,12 +56,12 @@ export function SubagentsPanel() {
                 aria-hidden
                 className={cn(
                   'size-2 shrink-0 rounded-full',
-                  STATUS_DOT[agent.status] ?? 'bg-muted-foreground/40'
+                  STATUS_DOT[status] ?? 'bg-muted-foreground/40'
                 )}
               />
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{title}</span>
               <span className="shrink-0 text-[10px] text-muted-foreground">
-                {STATUS_LABEL[agent.status]}
+                {STATUS_LABEL[status]}
               </span>
               {turnId && (
                 <Button

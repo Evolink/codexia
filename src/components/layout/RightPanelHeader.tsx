@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import {
   Bot,
   Diff,
@@ -12,7 +11,8 @@ import {
   SquareTerminal,
   X,
 } from 'lucide-react';
-import { collectSubagents } from '@/components/codex/items/subagents';
+import { useMemo } from 'react';
+import { collectSubagents, effectiveStatus } from '@/components/codex/items/subagents';
 import { useCodexStore } from '@/components/codex/stores';
 import { NewAgentButton } from '@/components/common/NewAgentButton';
 import { Button } from '@/components/ui/button';
@@ -66,9 +66,13 @@ export function RightPanelHeader() {
   const threadEvents = useCodexStore((s) =>
     s.currentThreadId ? s.events[s.currentThreadId] : undefined
   );
+  const turnTimingMap = useCodexStore((s) => s.turnTimingMap);
   const runningSubagents = useMemo(
-    () => collectSubagents(threadEvents ?? []).filter((a) => a.status === 'running').length,
-    [threadEvents]
+    () =>
+      collectSubagents(threadEvents ?? []).filter(
+        (a) => effectiveStatus(a, turnTimingMap[a.threadId]) === 'running'
+      ).length,
+    [threadEvents, turnTimingMap]
   );
 
   const openTab = (tab: RightPanelTab) => {

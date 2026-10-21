@@ -1,5 +1,6 @@
 import type { ServerNotification } from '@/bindings';
 import type { CollabAgentStatus } from '@/bindings/v2';
+import type { TurnTiming } from '@/components/codex/stores/useCodexStore';
 
 export interface SubagentEntry {
   threadId: string;
@@ -54,4 +55,24 @@ export function collectSubagents(events: ServerNotification[]): SubagentEntry[] 
     }
   }
   return [...byId.values()];
+}
+
+const TURN_STATUS: Record<Exclude<TurnTiming['status'], 'inProgress'>, CollabAgentStatus> = {
+  completed: 'completed',
+  interrupted: 'interrupted',
+  failed: 'errored',
+};
+
+/**
+ * The parent thread only learns a sub-agent's state when one of its collab calls
+ * returns, so a stopped sub-agent keeps reading "running" until the parent's wait
+ * ends. Its own turn knows sooner; prefer that once the turn is over.
+ */
+export function effectiveStatus(
+  entry: SubagentEntry,
+  timing: TurnTiming | undefined
+): CollabAgentStatus {
+  const live = entry.status === 'running' || entry.status === 'pendingInit';
+  if (!live || !timing || timing.status === 'inProgress') return entry.status;
+  return TURN_STATUS[timing.status];
 }
