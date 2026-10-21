@@ -24,7 +24,7 @@ export type viewType =
 
 export type SidebarMode = 'agent' | 'bot';
 
-export type RightPanelTab = 'diff' | 'tasks' | 'todo' | 'terminal' | 'webpreview' | 'files';
+export type RightPanelTab = 'diff' | 'todo' | 'terminal' | 'webpreview' | 'files';
 
 interface LayoutStore {
   isSidebarOpen: boolean;
@@ -159,7 +159,7 @@ export const useLayoutStore = create<LayoutStore>()(
     }),
     {
       name: 'layout-storage',
-      version: 7,
+      version: 8,
       partialize: (state) => ({
         isSidebarOpen: state.isSidebarOpen,
         isRightPanelOpen: state.isRightPanelOpen,
@@ -198,6 +198,16 @@ export const useLayoutStore = create<LayoutStore>()(
           // must land on the sidebar it was last actually showing.
           persistedState.sidebarMode = 'agent';
           if (persistedState.view === 'bot') persistedState.view = 'agent';
+        }
+        if (version < 8 && persistedState) {
+          // The Kanban tab moved into the sidebar's Active section.
+          const dropTasks = (tabs: string[]) => tabs.filter((tab) => tab !== 'tasks');
+          if (Array.isArray(persistedState.openRightPanelTabs)) {
+            persistedState.openRightPanelTabs = dropTasks(persistedState.openRightPanelTabs);
+          }
+          if (persistedState.activeRightPanelTab === 'tasks') {
+            persistedState.activeRightPanelTab = persistedState.openRightPanelTabs?.[0] ?? null;
+          }
         }
         return persistedState;
       },
