@@ -6,6 +6,20 @@
 > changelog. The release workflow reads the top `## [version]` section of this
 > file matching the tag being published.
 
+## [0.58.0] - 2026-10-21
+
+### Features & Improvements
+- Approval prompts are a shared card in the composer; Codex "Approve for me" goes through Codex auto-review, and permission presets match Codex with a one-time retry after a denial.
+- Codex shows thread writer conflicts in the composer.
+- Claude Code sessions run under Codexia's session id and follow `/clear`; a past prompt can be edited on a branch; sub-agent text is shown; MCP servers and plugins that are not working are listed.
+- Connectors: Keenable search and Cohesivity added; brand icons in the connector registry; the catalog moved to `registry/` in MCP Linker `server.json` format.
+
+### Fixes & Maintenance
+- Thread messages and composers share one centered column.
+- Claude Code: background agents finish in automations and show their turns; the session init card is removed; a session keeps reading between turns; renames carry on the message stream.
+- CI skips Rust or frontend jobs when their files are unchanged and uses Rust 1.99.1.
+- Vite, Tailwind and SWC plugins bumped to clear build warnings; `just dev-web` rebuilds the backend when `web/` changes.
+
 ## [0.57.0] - 2026-10-18
 
 ### Features & Improvements
