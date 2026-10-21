@@ -182,6 +182,15 @@ pub(crate) struct CcNewSessionParams {
 }
 
 #[derive(Deserialize)]
+pub(crate) struct CcForkSessionParams {
+    #[serde(rename = "session_id", alias = "sessionId")]
+    pub(crate) session_id: String,
+    #[serde(rename = "at_message_uuid", alias = "atMessageUuid")]
+    pub(crate) at_message_uuid: String,
+    pub(crate) options: AgentOptions,
+}
+
+#[derive(Deserialize)]
 pub(crate) struct CcResumeSessionParams {
     #[serde(rename = "session_id", alias = "sessionId")]
     pub(crate) session_id: String,

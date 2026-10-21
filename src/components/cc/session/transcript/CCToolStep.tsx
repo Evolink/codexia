@@ -225,6 +225,9 @@ export function CCToolStep({ step }: { step: CCStep }) {
   if (step.kind === 'thinking') {
     return <Reasoning title={t('items.thinking')} text={step.text} />;
   }
+  if (step.kind === 'text') {
+    return <Markdown value={step.text} className="text-sm text-muted-foreground" />;
+  }
 
   switch (step.block.name) {
     case 'Bash': {

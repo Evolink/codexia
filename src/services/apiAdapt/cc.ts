@@ -32,6 +32,19 @@ export async function ccMcpStatus(sessionId: string) {
   });
 }
 
+/** Branches a session after a transcript entry; returns the branch's session id. */
+export async function ccForkSession(
+  sessionId: string,
+  atMessageUuid: string,
+  options: CcAgentOptionsPayload
+) {
+  return await postJson<string>('/api/cc/fork-session', {
+    session_id: sessionId,
+    at_message_uuid: atMessageUuid,
+    options,
+  });
+}
+
 export async function ccResumeSession(sessionId: string, options: CcAgentOptionsPayload) {
   await postNoContent('/api/cc/resume-session', {
     session_id: sessionId,

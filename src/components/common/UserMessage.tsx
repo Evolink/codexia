@@ -1,12 +1,14 @@
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Markdown } from '@/components/Markdown';
 import { Button } from '@/components/ui/button';
 import { MessageToolbar } from './MessageToolbar';
 
 const MAX_COLLAPSED_HEIGHT = 128;
 
-export function UserMessage({ text }: { text: string }) {
+export function UserMessage({ text, onEdit }: { text: string; onEdit?: () => void }) {
+  const { t } = useTranslation('thread');
   const [collapsed, setCollapsed] = useState(true);
   const [overflows, setOverflows] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -63,7 +65,21 @@ export function UserMessage({ text }: { text: string }) {
           </div>
         )}
       </div>
-      <MessageToolbar text={text} />
+      <div className="flex items-center gap-1">
+        {onEdit && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onEdit}
+            aria-label={t('userMessage.edit')}
+            title={t('userMessage.edit')}
+            className="h-6 w-6 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <MessageToolbar text={text} />
+      </div>
     </div>
   );
 }

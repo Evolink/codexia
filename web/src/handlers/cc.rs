@@ -2,7 +2,7 @@ use std::sync::Arc;
 use super::to_error_response;
 use super::types::{
     CcMcpAddParams, CcMcpGetParams, CcMcpListParams, CcMcpRemoveParams, CcMcpToggleParams,
-    CcGetSessionsParams, CcNewSessionParams, CcResolvePermissionParams, CcResumeSessionParams,
+    CcForkSessionParams, CcGetSessionsParams, CcNewSessionParams, CcResolvePermissionParams, CcResumeSessionParams,
     CcSendMessageParams, CcSessionIdParams, CcSetPermissionModeParams, CcUpdateSettingsParams,
 };
 use axum::{Json, extract::State as AxumState, http::StatusCode};
@@ -87,6 +87,21 @@ pub(crate) async fn api_cc_interrupt(
         .await
         .map_err(to_error_response)?;
     Ok(StatusCode::OK)
+}
+
+pub(crate) async fn api_cc_fork_session(
+    AxumState(state): AxumState<WebServerState>,
+    Json(params): Json<CcForkSessionParams>,
+) -> Result<Json<String>, ErrorResponse> {
+    cc_session_service::fork_session(
+        &params.session_id,
+        params.at_message_uuid,
+        params.options,
+        state.cc_state.as_ref(),
+    )
+    .await
+    .map(Json)
+    .map_err(to_error_response)
 }
 
 pub(crate) async fn api_cc_mcp_status(

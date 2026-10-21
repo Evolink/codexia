@@ -137,6 +137,8 @@ impl AgentOptions {
             mcp_servers,
             resume: resume_id.or_else(|| self.resume.clone()),
             continue_conversation: self.continue_conversation.unwrap_or(false),
+            // Sub-agent text and thinking nest under their Task call in the transcript.
+            forward_subagent_text: true,
             stderr_callback: Some(Arc::new(|msg| log::error!("[CC STDERR] {}", msg))),
             ..Default::default()
         }

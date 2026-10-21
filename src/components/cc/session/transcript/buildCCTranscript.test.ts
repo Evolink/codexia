@@ -20,6 +20,7 @@ const toolResult = (id: string, content = 'ok', isError = false, parent?: string
   ...(parent ? { parent_tool_use_id: parent } : {}),
 });
 const text = (value: string): ContentBlock => ({ type: 'text', text: value });
+const withUuid = (msg: CCMessage, uuid: string) => ({ ...msg, uuid }) as CCMessage;
 const result = (): CCMessage => ({
   type: 'result',
   subtype: 'success',
@@ -120,5 +121,51 @@ describe('buildCCTranscript', () => {
       showThinking: false,
     });
     expect(items.map((item) => item.kind)).toEqual(['user', 'text']);
+  });
+
+  it('shows what a sub-agent says, but not its closing report twice', () => {
+    const messages: CCMessage[] = [
+      user('research'),
+      assistant([toolUse('t1', 'Task', { prompt: 'look' })]),
+      assistant([text('Checking the config first'), toolUse('s1', 'Read')], 't1'),
+      toolResult('s1', 'file', false, 't1'),
+      assistant([text('Report')], 't1'),
+    ];
+    const taskOf = (items: ReturnType<typeof buildCCTranscript>) => {
+      const chain = items.find((item) => item.kind === 'steps');
+      if (chain?.kind !== 'steps' || chain.steps[0].kind !== 'tool') throw new Error('no task');
+      return chain.steps[0];
+    };
+
+    // Running: everything the sub-agent said so far is shown.
+    expect(taskOf(buildCCTranscript(messages, true)).children.map((c) => c.kind)).toEqual([
+      'text',
+      'tool',
+      'text',
+    ]);
+    // Finished: the closing text is the report, shown with the call instead.
+    const done = taskOf(buildCCTranscript([...messages, toolResult('t1', 'Report')], true));
+    expect(done.children.map((c) => c.kind)).toEqual(['text', 'tool']);
+  });
+
+  it('marks where each prompt can branch from', () => {
+    const items = buildCCTranscript(
+      [
+        user('first'),
+        withUuid(assistant([toolUse('r1', 'Read')]), 'a1'),
+        withUuid(toolResult('r1'), 'u1'),
+        withUuid(assistant([text('done')]), 'a2'),
+        result(),
+        user('second'),
+        withUuid(assistant([text('sub')], 'r1'), 'side'),
+      ],
+      false
+    );
+
+    const prompts = items.filter((item) => item.kind === 'user');
+    expect(prompts.map((p) => [p.text, p.index, p.forkAt])).toEqual([
+      ['first', 0, null],
+      ['second', 5, 'a2'],
+    ]);
   });
 });

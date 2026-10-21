@@ -7,6 +7,8 @@ export const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
 /** One step of agent work: a thought or a tool call with its result. */
 export type CCStep =
   | { kind: 'thinking'; key: string; text: string }
+  /** What a sub-agent said along the way (forwarded with `forward_subagent_text`). */
+  | { kind: 'text'; key: string; text: string }
   | {
       kind: 'tool';
       key: string;
@@ -18,7 +20,18 @@ export type CCStep =
     };
 
 export type CCRenderItem =
-  | { kind: 'user'; key: string; text: string }
+  | {
+      kind: 'user';
+      key: string;
+      text: string;
+      /** Index of the prompt in the session's messages. */
+      index?: number;
+      /**
+       * The transcript entry a branch that rewrites this prompt resumes after;
+       * `null` for the first prompt, which has no history to keep.
+       */
+      forkAt?: string | null;
+    }
   | { kind: 'text'; key: string; text: string }
   | { kind: 'error'; key: string; text: string }
   | { kind: 'steps'; key: string; steps: CCStep[]; running: boolean }
@@ -39,6 +52,7 @@ type Unit = Exclude<CCRenderItem, { kind: 'steps' | 'turn' }> | { kind: 'step'; 
 interface Context {
   results: Map<string, ToolResultBlock>;
   children: Map<string, CCMessage[]>;
+  prompts: Map<CCMessage, { index: number; forkAt: string | null }>;
   /** Whether a call without a result may still be running. */
   live: boolean;
   showThinking: boolean;
@@ -46,24 +60,32 @@ interface Context {
 
 function toolStep(block: ToolUseBlock, ctx: Context): CCStep {
   const result = ctx.results.get(block.id) ?? null;
+  const children = stepsOf(ctx.children.get(block.id) ?? [], ctx);
+  // A finished sub-agent's closing text is its report, shown with the call.
+  if (result) {
+    while (children[children.length - 1]?.kind === 'text') children.pop();
+  }
   return {
     kind: 'tool',
     key: block.id,
     block,
     result,
     running: ctx.live && result === null,
-    children: stepsOf(ctx.children.get(block.id) ?? [], ctx),
+    children,
   };
 }
 
-/** A sub-agent's messages as a flat list of steps; its prompt and replies are left out. */
+/** A sub-agent's messages as a flat list of steps; its prompt is left out. */
 function stepsOf(messages: CCMessage[], ctx: Context): CCStep[] {
   const steps: CCStep[] = [];
   messages.forEach((msg, i) => {
     if (msg.type !== 'assistant') return;
     msg.message.content.forEach((block, j) => {
+      const key = `${msg.uuid ?? i}-${j}`;
       if (block.type === 'thinking' && ctx.showThinking && block.thinking.trim()) {
-        steps.push({ kind: 'thinking', key: `${msg.uuid ?? i}-${j}`, text: block.thinking });
+        steps.push({ kind: 'thinking', key, text: block.thinking });
+      } else if (block.type === 'text' && block.text.trim()) {
+        steps.push({ kind: 'text', key, text: block.text });
       } else if (block.type === 'tool_use') {
         steps.push(toolStep(block, ctx));
       }
@@ -83,7 +105,9 @@ function unitsOf(
       msg.type === 'assistant' || msg.type === 'user' ? (msg.uuid ?? `${index}`) : `${index}`;
     switch (msg.type) {
       case 'user':
-        if (msg.text) units.push({ kind: 'user', key: `user-${key}`, text: msg.text });
+        if (msg.text) {
+          units.push({ kind: 'user', key: `user-${key}`, text: msg.text, ...ctx.prompts.get(msg) });
+        }
         return;
       case 'assistant':
         if (msg.message.error) {
@@ -178,15 +202,24 @@ export function buildCCTranscript(
   // Messages from a sub-agent carry the id of the call that started it.
   const children = new Map<string, CCMessage[]>();
   const topLevel: CCMessage[] = [];
-  for (const msg of messages) {
+  // Each prompt can be rewritten on a branch that resumes after the last
+  // main-conversation entry before it.
+  const prompts = new Map<CCMessage, { index: number; forkAt: string | null }>();
+  let lastUuid: string | null = null;
+  messages.forEach((msg, index) => {
     const parent =
       msg.type === 'user' || msg.type === 'assistant' ? msg.parent_tool_use_id : undefined;
     if (parent && toolIds.has(parent)) {
       children.set(parent, [...(children.get(parent) ?? []), msg]);
-    } else {
-      topLevel.push(msg);
+      return;
     }
-  }
+    topLevel.push(msg);
+    if (msg.type === 'user' && msg.text) {
+      prompts.set(msg, { index, forkAt: lastUuid });
+    } else if ((msg.type === 'user' || msg.type === 'assistant') && msg.uuid) {
+      lastUuid = msg.uuid;
+    }
+  });
 
   // Split into turns at each user prompt.
   const turns: CCMessage[][] = [];
@@ -197,7 +230,13 @@ export function buildCCTranscript(
 
   return turns.flatMap((turnMessages, turnIndex) => {
     const live = isLoading && turnIndex === turns.length - 1;
-    const { units, result } = unitsOf(turnMessages, { results, children, live, showThinking });
+    const { units, result } = unitsOf(turnMessages, {
+      results,
+      children,
+      prompts,
+      live,
+      showThinking,
+    });
     const head = units[0]?.kind === 'user' ? [units[0]] : [];
     const body = units.slice(head.length);
 
