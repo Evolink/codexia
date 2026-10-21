@@ -168,4 +168,15 @@ describe('buildCCTranscript', () => {
       ['second', 5, 'a2'],
     ]);
   });
+
+  it('refers to messages by their index in the session', () => {
+    const init = (sid: string): CCMessage => ({ type: 'system', subtype: 'init', session_id: sid });
+    const messages = [user('one'), init('a'), assistant([text('ok')]), user('two'), init('b')];
+    const items = buildCCTranscript(messages, false);
+    const shown = items.flatMap((item) => (item.kind === 'message' ? [item.index] : []));
+    expect(shown.map((index) => messages[index])).toEqual([messages[1], messages[4]]);
+    // Keys stay unique across turns for messages without a uuid.
+    const keys = items.map((item) => item.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
 });
