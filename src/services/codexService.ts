@@ -12,6 +12,7 @@ import type {
   ThreadStartParams,
   UserInput,
 } from '@/bindings/v2';
+import { unfinishedCommandIds } from '@/components/codex/items/unfinishedCommands';
 import {
   ACCESS_MODES,
   useCodexStore,
@@ -34,6 +35,8 @@ import {
   listThreads,
   readThread,
   skillList,
+  threadBackgroundTerminalsList,
+  threadBackgroundTerminalsTerminate,
   threadCompactStart,
   threadFork,
   threadGoalClear,
@@ -49,6 +52,25 @@ import {
   turnStart,
   turnSteer,
 } from './apiAdapt';
+
+/**
+ * Interrupting a turn leaves its running commands alive as background terminals.
+ * End just the ones this turn left open, not terminals the user may have asked for.
+ */
+async function stopBackgroundCommands(threadId: string, itemIds: string[]) {
+  try {
+    const { data } = await threadBackgroundTerminalsList({ threadId });
+    const stale = data.filter((terminal) => itemIds.includes(terminal.itemId));
+    await Promise.all(
+      stale.map((terminal) =>
+        threadBackgroundTerminalsTerminate({ threadId, processId: terminal.processId })
+      )
+    );
+  } catch (error: unknown) {
+    // The turn is already interrupted; failing to clean up must not look like a failed stop.
+    console.warn('[CodexService] could not stop background commands:', error);
+  }
+}
 
 const sandboxModeToPolicy = (mode: SandboxMode, networkAccess: boolean): SandboxPolicy => {
   switch (mode) {
@@ -476,6 +498,8 @@ export const codexService = {
     return response.status;
   },
   async turnInterrupt(threadId: string, turnId: string) {
+    // Read before interrupting, while the turn's open commands are still open.
+    const openCommands = unfinishedCommandIds(useCodexStore.getState().events[threadId], turnId);
     try {
       await turnInterrupt({ threadId, turnId });
       // `currentTurnId` belongs to the viewed thread; stopping a sub-agent's turn
@@ -487,6 +511,7 @@ export const codexService = {
       console.error('[CodexService] turnInterrupt error:', error);
       throw error;
     }
+    if (openCommands.length > 0) await stopBackgroundCommands(threadId, openCommands);
   },
   async listSkills(cwd: string | null) {
     if (!cwd) return [];
