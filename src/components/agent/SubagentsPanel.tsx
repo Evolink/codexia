@@ -31,7 +31,11 @@ export function SubagentsPanel() {
   const currentThreadId = useCodexStore((s) => s.currentThreadId);
   const events = useCodexStore((s) => (currentThreadId ? s.events[currentThreadId] : undefined));
   const turnTimingMap = useCodexStore((s) => s.turnTimingMap);
-  const subagents = useMemo(() => collectSubagents(events ?? []), [events]);
+  const eventsByThread = useCodexStore((s) => s.events);
+  const subagents = useMemo(
+    () => collectSubagents(events ?? [], eventsByThread),
+    [events, eventsByThread]
+  );
 
   if (subagents.length === 0) {
     return (

@@ -242,6 +242,33 @@ describe('thread step chain', () => {
     expect(screen.getByText('Ran bun test')).toBeTruthy();
   });
 
+  it('warns when an interrupted turn left a command without a result', () => {
+    const interrupted = {
+      method: 'turn/completed',
+      params: { threadId: 't1', turn: { id: 'turn1', items: [], status: 'interrupted' } },
+    } as unknown as ServerNotification;
+    const events = [
+      started({ type: 'commandExecution', id: 'c1', command: 'sleep 100' }),
+      interrupted,
+    ];
+    render(<EventItem event={interrupted} context={{ events, eventIndex: 1 }} />);
+    expect(screen.getByText(/may not have stopped/)).toBeTruthy();
+  });
+
+  it('stays quiet when every started command finished before the interrupt', () => {
+    const interrupted = {
+      method: 'turn/completed',
+      params: { threadId: 't1', turn: { id: 'turn1', items: [], status: 'interrupted' } },
+    } as unknown as ServerNotification;
+    const events = [
+      started({ type: 'commandExecution', id: 'c1', command: 'ls' }),
+      completed({ type: 'commandExecution', id: 'c1', command: 'ls' }),
+      interrupted,
+    ];
+    render(<EventItem event={interrupted} context={{ events, eventIndex: 2 }} />);
+    expect(screen.queryByText(/may not have stopped/)).toBeNull();
+  });
+
   it('does not treat a started step of a finished turn as running', () => {
     const { container } = render(
       <Chains

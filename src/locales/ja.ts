@@ -255,6 +255,7 @@ export const ja = {
       subAgentStarted: 'サブエージェントを開始しました',
       subAgentInteracted: 'サブエージェントとやり取りしました',
       subAgentInterrupted: 'サブエージェントを中断しました',
+      commandMayStillRun: '実行中のコマンドが停止していない可能性があります。',
       subAgentCompleted: 'サブエージェントが完了しました',
       stepsRunning: '作業中',
       stepsDone_one: '{{count}} ステップで作業しました',
