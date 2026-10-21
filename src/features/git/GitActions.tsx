@@ -1,5 +1,16 @@
-import { CloudUpload, GitCommit, ListTodo } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { Check, CloudUpload, GitCommit, ListTodo, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useCodexStore } from '@/components/codex/stores';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,17 +21,84 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
-import { gitCommit, gitPush } from '@/services/apiAdapt/git';
+import {
+  gitApplyWorktreeChanges,
+  gitCommit,
+  gitHasWorktreeChanges,
+  gitPush,
+  gitRemoveWorktree,
+} from '@/services/apiAdapt/git';
+import { useAgentCenterStore } from '@/stores';
+import { useCCStore } from '@/stores/cc';
 import { useGitStatsStore } from '@/stores/useGitStatsStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { GitCommitDialog } from './GitCommitDialog';
+
+/** Worktree of the thread being viewed, if it runs in one. */
+function useCurrentWorktree(cwd: string | null) {
+  const card = useAgentCenterStore((s) => s.cards.find((c) => c.id === s.currentAgentCardId));
+  const updateCard = useAgentCenterStore((s) => s.updateCard);
+  const busy = useCodexStore((s) =>
+    card?.kind === 'codex' ? s.threadStatusMap[card.id]?.type === 'active' : false
+  );
+  const ccBusy = useCCStore((s) => (card?.kind === 'cc' ? !!s.sessionLoadingMap[card.id] : false));
+  const key = card?.worktreePath?.split('/').pop() ?? '';
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Re-check when a running turn finishes, since that is when files change.
+  const working = busy || ccBusy;
+  useEffect(() => {
+    if (!cwd || !key || working) {
+      setHasChanges(false);
+      return;
+    }
+    let cancelled = false;
+    gitHasWorktreeChanges(cwd, key)
+      .then((result) => !cancelled && setHasChanges(result.has_changes))
+      .catch(() => !cancelled && setHasChanges(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [cwd, key, working]);
+
+  const detach = () => card && updateCard({ ...card, worktreePath: undefined });
+  return { key, hasChanges, working, detach };
+}
 
 export function GitActions() {
   const { cwd } = useWorkspaceStore();
   const { refreshStats } = useGitStatsStore();
   const { toast } = useToast();
+  const worktree = useCurrentWorktree(cwd);
 
   const [isCommitDialogOpen, setIsCommitDialogOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+
+  const applyWorktree = async () => {
+    if (!cwd || !worktree.key) return;
+    try {
+      const result = await gitApplyWorktreeChanges(cwd, worktree.key);
+      await gitRemoveWorktree(cwd, worktree.key);
+      worktree.detach();
+      refreshGitStats();
+      toast.success('Applied worktree changes', {
+        description: `${result.changed_files} file${result.changed_files === 1 ? '' : 's'} merged into the main checkout`,
+      });
+    } catch (err) {
+      toast.error('Failed to apply worktree changes', { description: String(err) });
+    }
+  };
+
+  const discardWorktree = async () => {
+    if (!cwd || !worktree.key) return;
+    try {
+      await gitRemoveWorktree(cwd, worktree.key);
+      worktree.detach();
+      toast.success('Worktree discarded');
+    } catch (err) {
+      toast.error('Failed to discard worktree', { description: String(err) });
+    }
+  };
 
   const refreshGitStats = useCallback(() => {
     if (!cwd) return;
@@ -86,6 +164,28 @@ export function GitActions() {
             <CloudUpload className="size-3.5 text-primary" />
             <span>Push</span>
           </DropdownMenuItem>
+
+          {worktree.key && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2 text-xs cursor-pointer"
+                disabled={!worktree.hasChanges || worktree.working}
+                onClick={applyWorktree}
+              >
+                <Check className="size-3.5 text-primary" />
+                <span>Apply to main checkout</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-2 text-xs cursor-pointer text-destructive"
+                disabled={worktree.working}
+                onClick={() => setDiscardOpen(true)}
+              >
+                <Trash2 className="size-3.5" />
+                <span>Discard worktree</span>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -94,6 +194,21 @@ export function GitActions() {
         onClose={() => setIsCommitDialogOpen(false)}
         onConfirm={confirmGitCommit}
       />
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this worktree?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Changes the agent made in it that were not applied are lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={discardWorktree}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
