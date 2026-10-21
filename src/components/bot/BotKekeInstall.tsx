@@ -1,6 +1,8 @@
+import { cn } from 'cn';
 import { Loader2, Terminal } from 'lucide-react';
 import { useState } from 'react';
 import { refreshAcpAgents } from '@/components/acp/useAcpAgents';
+import { THREAD_COLUMN } from '@/components/common/threadColumn';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { acpInstallAgent } from '@/services/apiAdapt/acp';
@@ -31,7 +33,7 @@ export function BotKekeInstall({ botName }: { botName: string }) {
   };
 
   return (
-    <div className="shrink-0 border-t bg-background p-3">
+    <div className={cn(THREAD_COLUMN, 'shrink-0 pt-1 pb-3')}>
       <div className="flex items-center gap-3 rounded-2xl border border-dashed px-3 py-3 text-sm text-muted-foreground">
         <Terminal className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1">

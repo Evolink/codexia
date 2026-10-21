@@ -10,6 +10,7 @@ import {
   useMessageScroller,
   useMessageScrollerVisibility,
 } from '@/components/ui/message-scroller';
+import { THREAD_COLUMN } from './threadColumn';
 
 /** A user message the navigator can jump to; `id` is its scroller item id. */
 export type ThreadTurn = { id: string; text: string };
@@ -108,7 +109,7 @@ export function ThreadScroller({
       <MessageScroller className={cn('@container/thread', className)}>
         <MessageScrollerViewport>
           <MessageScrollerContent
-            className={cn('mx-auto w-full max-w-4xl gap-2 p-4 *:empty:hidden', contentClassName)}
+            className={cn(THREAD_COLUMN, 'gap-2 py-4 *:empty:hidden', contentClassName)}
           >
             {children}
           </MessageScrollerContent>

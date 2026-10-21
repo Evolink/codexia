@@ -1,7 +1,9 @@
+import { cn } from 'cn';
 import { lazy, Suspense, useEffect } from 'react';
 import { detachBotConnection } from '@/components/acp/botConnection';
 import { useAcpEvents } from '@/components/acp/useAcpEvents';
 import { useCodexStore } from '@/components/codex/stores';
+import { THREAD_COLUMN } from '@/components/common/threadColumn';
 import { useCCStore } from '@/stores/cc';
 import { useAcpStore } from '@/stores/useAcpStore';
 import { useAgentSettingsStore } from '@/stores/useAgentSettingsStore';
@@ -29,12 +31,12 @@ function EmptySessionLayout() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <div className="flex-1 min-h-0 overflow-y-auto flex justify-center">
-        <div className="w-full px-4 py-6 my-auto md:max-w-3xl md:px-0">
+        <div className={cn(THREAD_COLUMN, 'py-6 my-auto')}>
           <AgentPicker className="justify-center" />
         </div>
       </div>
       <div className="shrink-0 flex justify-center">
-        <div className="w-full px-2 md:max-w-3xl md:px-0">
+        <div className={THREAD_COLUMN}>
           <AgentComposer />
         </div>
       </div>
@@ -86,7 +88,7 @@ export default function AgentView() {
             </Suspense>
           </div>
           <div className="shrink-0 flex justify-center">
-            <div className="w-full px-2 md:max-w-3xl md:px-0">
+            <div className={THREAD_COLUMN}>
               <AgentComposer />
             </div>
           </div>

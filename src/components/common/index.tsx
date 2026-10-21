@@ -4,6 +4,7 @@ export * from './CopyButton';
 export * from './FileMentionPopover';
 export * from './MessageToolbar';
 export * from './ThreadScroller';
+export * from './threadColumn';
 export * from './UserMessage';
 export * from './useComposerPopover';
 export * from './WorkspaceSwitcher';

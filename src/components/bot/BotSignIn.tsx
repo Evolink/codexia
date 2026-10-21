@@ -1,4 +1,6 @@
+import { cn } from 'cn';
 import { KeyRound } from 'lucide-react';
+import { THREAD_COLUMN } from '@/components/common/threadColumn';
 import { type AcpAuthMethod, acpAuthenticate, acpNewSession } from '@/services/apiAdapt/acp';
 import type { Bot } from '@/services/apiAdapt/bots';
 import { useAcpStore } from '@/stores/useAcpStore';
@@ -31,7 +33,7 @@ export function BotSignIn({
   };
 
   return (
-    <div className="shrink-0 border-t bg-background p-3">
+    <div className={cn(THREAD_COLUMN, 'shrink-0 pt-1 pb-3')}>
       <div className="space-y-3 rounded-2xl border border-dashed px-3 py-3 text-sm">
         <div className="flex items-center gap-3">
           <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground" />

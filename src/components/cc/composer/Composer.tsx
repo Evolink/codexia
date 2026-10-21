@@ -155,7 +155,7 @@ export function Composer({ overrideSend, onAfterSend }: ComposerProps = {}) {
         <div className="relative group">
           <div
             ref={wrapperRef}
-            className="min-h-16 max-h-48 border border-input rounded-md bg-transparent focus-within:ring-[3px] focus-within:ring-ring/50 focus-within:border-ring transition-[color,box-shadow]"
+            className="min-h-16 max-h-48 border rounded-xl bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring transition-shadow overflow-hidden"
           >
             <textarea
               ref={textareaRef}
