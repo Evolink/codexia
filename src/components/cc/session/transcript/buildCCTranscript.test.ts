@@ -169,6 +169,28 @@ describe('buildCCTranscript', () => {
     ]);
   });
 
+  it('gives a turn the session starts on its own a place of its own', () => {
+    const init: CCMessage = { type: 'system', subtype: 'init', session_id: 's' };
+    const items = buildCCTranscript(
+      [
+        user('research it'),
+        assistant([toolUse('a1', 'Agent', { run_in_background: true })]),
+        toolResult('a1', 'launched in the background'),
+        assistant([text('launched')]),
+        result(),
+        init,
+        assistant([text('The agent found it.')]),
+        result(),
+      ],
+      false
+    );
+    expect(items.map((item) => item.kind)).toEqual(['user', 'turn', 'text', 'message', 'text']);
+    expect(items.flatMap((item) => (item.kind === 'text' ? [item.text] : []))).toEqual([
+      'launched',
+      'The agent found it.',
+    ]);
+  });
+
   it('refers to messages by their index in the session', () => {
     const init = (sid: string): CCMessage => ({ type: 'system', subtype: 'init', session_id: sid });
     const messages = [user('one'), init('a'), assistant([text('ok')]), user('two'), init('b')];

@@ -120,7 +120,17 @@ fn start_reader(key: &str, client: &ClaudeClient, state: &CCState) -> Arc<Sessio
             }
 
             let is_result = matches!(msg, Message::Result(_));
-            reader.in_turn.store(!is_result, Ordering::SeqCst);
+            match &msg {
+                Message::System(system) if system.subtype == "background_tasks_changed" => {
+                    let running = system.data.get("tasks").and_then(|tasks| tasks.as_array());
+                    reader
+                        .background_tasks
+                        .store(running.map_or(0, Vec::len), Ordering::SeqCst);
+                }
+                // Task updates also arrive between turns.
+                Message::System(system) if system.subtype.starts_with("task_") => {}
+                _ => reader.in_turn.store(!is_result, Ordering::SeqCst),
+            }
             emit_message(&state, &key, &msg);
             // Rename before the waiters see the result, so a caller that closes
             // the session when its turn ends closes it under its current id.
@@ -136,6 +146,8 @@ fn start_reader(key: &str, client: &ClaudeClient, state: &CCState) -> Arc<Sessio
             if is_result {
                 waiters.clear();
             }
+            drop(waiters);
+            reader.activity.send_modify(|count| *count += 1);
         }
 
         // The CLI exited. Waiters see their channel close and report their turn;
@@ -147,6 +159,8 @@ fn start_reader(key: &str, client: &ClaudeClient, state: &CCState) -> Arc<Sessio
             waiters.clear();
             waited
         };
+        reader.closed.store(true, Ordering::SeqCst);
+        reader.activity.send_modify(|count| *count += 1);
         let key = key_arc.lock().unwrap().clone();
         let registered = state
             .streams
@@ -243,6 +257,36 @@ async fn run_turn(
         }
     }
     Err("Claude Code exited before finishing the turn".to_string())
+}
+
+/// Waits until a session has nothing left to do: no turn in progress, no
+/// background task running, and no message for `quiet`. The quiet period
+/// covers the turn the CLI starts on its own right after a background task
+/// finishes. Returns at once for a session that is not being read, and when
+/// the CLI exits.
+pub(crate) async fn wait_until_idle(key: &str, state: &CCState, quiet: std::time::Duration) {
+    let Some(stream) = state.streams.get(key).map(|stream| Arc::clone(&stream)) else {
+        return;
+    };
+    let mut activity = stream.activity.subscribe();
+    loop {
+        if stream.closed.load(Ordering::SeqCst) {
+            return;
+        }
+        let busy = stream.in_turn.load(Ordering::SeqCst)
+            || stream.background_tasks.load(Ordering::SeqCst) > 0;
+        let changed = if busy {
+            activity.changed().await
+        } else {
+            match tokio::time::timeout(quiet, activity.changed()).await {
+                Ok(changed) => changed,
+                Err(_) => return,
+            }
+        };
+        if changed.is_err() {
+            return;
+        }
+    }
 }
 
 /// Sends a prompt in the background; the session's reader emits its messages.
@@ -431,6 +475,20 @@ mod tests {
             };
             assert_eq!(last.result.as_deref(), Some("third"));
             assert_eq!(results(&sink.0.lock().unwrap()), vec!["first", "second", "third"]);
+        }
+
+        #[tokio::test]
+        async fn idle_waits_for_background_tasks_and_the_turn_after_them() {
+            let (state, sink) = state_with_fake_cli("fake_cli_background_turn.sh", "s1").await;
+            send_message_and_wait("s1", "launch", &[], &state, |_, _| {}).await.unwrap();
+            // Quieter than the agent's run: only the running task keeps it waiting.
+            tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                wait_until_idle("s1", &state, std::time::Duration::from_millis(100)),
+            )
+            .await
+            .expect("the session goes idle");
+            assert_eq!(results(&sink.0.lock().unwrap()), vec!["first", "second"]);
         }
 
         #[tokio::test]
