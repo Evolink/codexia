@@ -22,5 +22,12 @@ const TRANSCRIPT_METHODS = new Set<ServerNotification['method']>([
   'item/commandExecution/terminalInteraction',
 ]);
 
-export const isTranscriptEvent = (event: ServerNotification): boolean =>
-  TRANSCRIPT_METHODS.has(event.method);
+export const isTranscriptEvent = (event: ServerNotification): boolean => {
+  // Like Codex, an auto-review that approves leaves no trace; only a denial or a
+  // timeout is worth a line in the chat.
+  if (event.method === 'item/autoApprovalReview/completed') {
+    const { status } = event.params.review;
+    return status === 'denied' || status === 'timedOut';
+  }
+  return TRANSCRIPT_METHODS.has(event.method);
+};

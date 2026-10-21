@@ -40,6 +40,8 @@ import type {
   ProjectUpdateResponse,
   ReviewStartParams,
   ReviewStartResponse,
+  ThreadApproveGuardianDeniedActionParams,
+  ThreadApproveGuardianDeniedActionResponse,
   ThreadForkParams,
   ThreadForkResponse,
   ThreadGoalClearParams,
@@ -114,6 +116,15 @@ export async function threadFork(params: ThreadForkParams) {
 
 export async function threadRevert(params: ThreadRevertParams) {
   return await postJson<ThreadRevertResponse>('/api/codex/thread/revert', params);
+}
+
+export async function threadApproveGuardianDeniedAction(
+  params: ThreadApproveGuardianDeniedActionParams
+) {
+  return await postJson<ThreadApproveGuardianDeniedActionResponse>(
+    '/api/codex/thread/approve-denied-action',
+    params
+  );
 }
 
 export async function turnStart(params: TurnStartParams) {

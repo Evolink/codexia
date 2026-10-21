@@ -1,16 +1,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ReasoningEffort } from '@/bindings';
-import type { AskForApproval, SandboxMode } from '@/bindings/v2';
+import type { ApprovalsReviewer, AskForApproval, SandboxMode } from '@/bindings/v2';
 import type { Provider } from '@/stores/settings';
 
 export type Personality = 'friendly' | 'pragmatic';
 export type ModeKind = 'default' | 'plan';
 export type ThreadCwdMode = 'local' | 'worktree';
 
+// The composer's permission modes, named after the Codex app's presets.
+export type AccessMode = 'ask' | 'auto' | 'full';
+
 export interface ConfigStore {
-  sandbox: SandboxMode;
-  approvalPolicy: AskForApproval;
+  accessMode: AccessMode;
   reasoningEffort: ReasoningEffort;
   webSearchRequest: boolean;
   modelProvider: Provider;
@@ -22,7 +24,7 @@ export interface ConfigStore {
   threadCwdMode: ThreadCwdMode;
   setModel: (model: string) => void;
   setModelProvider: (provider: Provider) => void;
-  setAccessMode: (sandbox: SandboxMode) => void;
+  setAccessMode: (mode: AccessMode) => void;
   setReasoningEffort: (effort: ReasoningEffort) => void;
   setWebSearch: (webSearchRequest: boolean) => void;
   setPersonality: (personality: Personality | null) => void;
@@ -30,18 +32,42 @@ export interface ConfigStore {
   setThreadCwdMode: (mode: ThreadCwdMode) => void;
 }
 
-export const SANDBOX_APPROVAL_MAP: Record<SandboxMode, AskForApproval> = {
-  'read-only': 'untrusted',
-  'workspace-write': 'on-request',
-  'danger-full-access': 'never',
+// "Ask for approval" and "Approve for me" share the workspace-write sandbox; they differ
+// only in who answers its approval requests, the user or Codex's auto-reviewer.
+export const ACCESS_MODES: Record<
+  AccessMode,
+  { sandbox: SandboxMode; approvalPolicy: AskForApproval; approvalsReviewer: ApprovalsReviewer }
+> = {
+  ask: { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user' },
+  auto: {
+    sandbox: 'workspace-write',
+    approvalPolicy: 'on-request',
+    approvalsReviewer: 'auto_review',
+  },
+  full: { sandbox: 'danger-full-access', approvalPolicy: 'never', approvalsReviewer: 'user' },
 };
+
+// v0 stored the sandbox and its approval policy; each sandbox was one menu entry.
+const V0_SANDBOX_MODES: Record<string, AccessMode> = {
+  'read-only': 'ask',
+  'workspace-write': 'auto',
+  'danger-full-access': 'full',
+};
+
+export function migrateConfigStore(persisted: unknown, version: number): Record<string, unknown> {
+  const state = (persisted ?? {}) as Record<string, unknown>;
+  if (version < 1) {
+    const { sandbox, approvalPolicy: _approvalPolicy, ...rest } = state;
+    return { ...rest, accessMode: V0_SANDBOX_MODES[String(sandbox)] ?? 'ask' };
+  }
+  return state;
+}
 
 export const useConfigStore = create<ConfigStore>()(
   persist(
     (set) => ({
       webSearchRequest: false,
-      sandbox: 'workspace-write',
-      approvalPolicy: 'on-request',
+      accessMode: 'ask',
       reasoningEffort: 'medium',
       modelProvider: 'openai',
       model: '',
@@ -64,9 +90,8 @@ export const useConfigStore = create<ConfigStore>()(
         }));
       },
 
-      setAccessMode: (sandbox: SandboxMode) => {
-        const approvalPolicy = SANDBOX_APPROVAL_MAP[sandbox];
-        set({ sandbox, approvalPolicy });
+      setAccessMode: (accessMode: AccessMode) => {
+        set({ accessMode });
       },
 
       setReasoningEffort: (effort: ReasoningEffort) => {
@@ -91,6 +116,9 @@ export const useConfigStore = create<ConfigStore>()(
     }),
     {
       name: 'codex-config-storage',
+      version: 1,
+      migrate: (persisted, version) =>
+        migrateConfigStore(persisted, version) as unknown as ConfigStore,
     }
   )
 );

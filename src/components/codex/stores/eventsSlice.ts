@@ -12,6 +12,8 @@ export const createEventsSlice: StateCreator<CodexStore, [], [], EventsSlice> = 
   commandStatusMap: {},
   commandDurationMap: {},
   retryNoticeMap: {},
+  pendingReviewMap: {},
+  approvedDenialIds: {},
   tokenUsageMap: {},
   goalMap: {},
   goalEnabled: false,
@@ -110,6 +112,27 @@ export const createEventsSlice: StateCreator<CodexStore, [], [], EventsSlice> = 
         }
       }
 
+      // A review leaves the pending set when it completes, or when its turn ends
+      // without a completion (interrupted turns never send one).
+      let pendingReviewMap = state.pendingReviewMap;
+      const pendingReviews = pendingReviewMap[threadId];
+      if (event.method === 'item/autoApprovalReview/started') {
+        const { reviewId, action } = event.params;
+        pendingReviewMap = {
+          ...pendingReviewMap,
+          [threadId]: { ...pendingReviews, [reviewId]: action },
+        };
+      } else if (
+        event.method === 'item/autoApprovalReview/completed' &&
+        pendingReviews?.[event.params.reviewId]
+      ) {
+        const { [event.params.reviewId]: _done, ...rest } = pendingReviews;
+        pendingReviewMap = { ...pendingReviewMap, [threadId]: rest };
+      } else if (event.method === 'turn/completed' && pendingReviews) {
+        const { [threadId]: _cleared, ...rest } = pendingReviewMap;
+        pendingReviewMap = rest;
+      }
+
       // Update command status map
       let commandStatusMap = state.commandStatusMap;
       let commandDurationMap = state.commandDurationMap;
@@ -147,9 +170,16 @@ export const createEventsSlice: StateCreator<CodexStore, [], [], EventsSlice> = 
         commandStatusMap,
         commandDurationMap,
         retryNoticeMap,
+        pendingReviewMap,
         goalMap,
       };
     });
+  },
+
+  markDenialApproved: (reviewId: string) => {
+    set((state: CodexStore) => ({
+      approvedDenialIds: { ...state.approvedDenialIds, [reviewId]: true },
+    }));
   },
 
   setTokenUsage: (threadId: string, data: ThreadTokenUsage) => {

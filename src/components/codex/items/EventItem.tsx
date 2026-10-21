@@ -3,6 +3,7 @@ import type { ServerNotification } from '@/bindings';
 import type { FileUpdateChange } from '@/bindings/v2';
 import { Badge } from '@/components/ui/badge';
 import { AgentMessageItem } from './AgentMessageItem';
+import { AutoReviewDecisionItem } from './AutoReviewDecisionItem';
 import {
   aggregateFileChanges,
   aggregateTurnChangesFromContext,
@@ -126,6 +127,8 @@ export const EventItem = ({ event, context }: EventItemProps) => {
         </div>
       );
     }
+    case 'item/autoApprovalReview/completed':
+      return <AutoReviewDecisionItem params={event.params} />;
     case 'turn/plan/updated':
       return <TurnPlan plan={event.params.plan} explanation={event.params.explanation} />;
     case 'item/agentMessage/delta':

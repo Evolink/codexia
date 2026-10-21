@@ -30,6 +30,7 @@ function endsChain(event: ServerNotification): boolean {
     case 'turn/plan/updated':
     case 'item/agentMessage/delta':
     case 'item/commandExecution/terminalInteraction':
+    case 'item/autoApprovalReview/completed':
       return true;
     default:
       return false;

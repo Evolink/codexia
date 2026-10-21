@@ -2,6 +2,7 @@ import type { ServerNotification } from '@/bindings';
 import type {
   Account,
   CommandExecutionStatus,
+  GuardianApprovalReviewAction,
   Thread,
   ThreadGoal,
   ThreadStatus,
@@ -57,6 +58,10 @@ export interface EventsSlice {
   commandDurationMap: Record<string, number | null>;
   /** Latest retryable error message per thread; shown on the working indicator, cleared by the next event. */
   retryNoticeMap: Record<string, string>;
+  /** Auto-reviews still deciding, per thread: reviewId -> its action, from item/autoApprovalReview/*. */
+  pendingReviewMap: Record<string, Record<string, GuardianApprovalReviewAction>>;
+  /** Denied auto-reviews the user approved for one retry (reviewId -> true). */
+  approvedDenialIds: Record<string, true>;
   /** Per-thread token usage from thread/tokenUsage/updated */
   tokenUsageMap: Record<string, ThreadTokenUsage>;
   /** Per-thread goal from thread/goal/updated */
@@ -65,6 +70,7 @@ export interface EventsSlice {
   goalEnabled: boolean;
 
   addEvent: (threadId: string, event: ServerNotification) => void;
+  markDenialApproved: (reviewId: string) => void;
   setTokenUsage: (threadId: string, data: ThreadTokenUsage) => void;
   setGoal: (threadId: string, goal: ThreadGoal) => void;
   clearGoal: (threadId: string) => void;
