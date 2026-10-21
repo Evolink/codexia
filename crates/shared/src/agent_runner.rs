@@ -32,6 +32,8 @@ pub enum AgentRunOutcome {
 /// An agent that automation can drive. Implementations live in the agent crates:
 /// - `CodexAgentRunner` in `codexia-codex`
 /// - `CcAgentRunner` in `codexia-cc`
+// `async_trait` boxes each future, which clippy 1.99 flags as `double_must_use`.
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait AgentRunner: Send + Sync {
     /// Identifier stored on the task (e.g. "codex", "cc").
