@@ -22,3 +22,15 @@ describe('renameCard', () => {
     expect(state.currentAgentCardId).toBe('new');
   });
 });
+
+describe('addAgentCard', () => {
+  it('keeps the newest cards once the registry is full', () => {
+    useAgentCenterStore.setState({ cards: [], currentAgentCardId: null });
+    for (let i = 0; i < 205; i++) {
+      useAgentCenterStore.getState().addAgentCard({ kind: 'codex', id: `t${i}` });
+    }
+    const { cards } = useAgentCenterStore.getState();
+    expect(cards).toHaveLength(200);
+    expect(cards[0].id).toBe('t204');
+  });
+});

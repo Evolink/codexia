@@ -2,7 +2,6 @@ import {
   Diff,
   Files,
   Globe,
-  Kanban,
   ListTodo,
   type LucideIcon,
   Maximize2,
@@ -41,7 +40,6 @@ const TAB_BUTTONS: TabConfig[] = [
   { tab: 'terminal', icon: SquareTerminal, label: 'Terminal' },
   { tab: 'webpreview', icon: Globe, label: 'Browser' },
   { tab: 'files', icon: Files, label: 'Files' },
-  { tab: 'tasks', icon: Kanban, label: 'Kanban' },
 ];
 
 export function RightPanelHeader() {

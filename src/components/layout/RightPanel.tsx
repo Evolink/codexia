@@ -12,7 +12,6 @@ const GitDiffPanel = lazy(() => import('@/features/git/GitDiffPanel'));
 const WebPreview = lazy(() =>
   import('../../features/web-preview/WebPreview').then((m) => ({ default: m.WebPreview }))
 );
-const TasksPanel = lazy(() => import('@/components/agent/TasksPanel'));
 const TerminalPanel = lazy(() =>
   import('@/features/terminal/TerminalPanel').then((m) => ({ default: m.TerminalPanel }))
 );
@@ -84,14 +83,6 @@ export function RightPanel() {
                 <GitDiffPanel cwd={cwd} isActive={activeRightPanelTab === 'diff'} />
               </div>
             </Suspense>
-
-            {activeRightPanelTab === 'tasks' && (
-              <div className="h-full min-h-0 overflow-hidden">
-                <Suspense fallback={null}>
-                  <TasksPanel />
-                </Suspense>
-              </div>
-            )}
 
             {activeRightPanelTab === 'todo' && (
               <div className="h-full min-h-0 overflow-hidden">

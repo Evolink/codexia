@@ -8,13 +8,15 @@ export type AgentCenterCard =
 interface AgentCenterState {
   cards: AgentCenterCard[];
   addAgentCard: (card: AgentCenterCard) => boolean;
-  removeCard: (card: AgentCenterCard) => void;
   updateCard: (card: AgentCenterCard) => void;
   /** Moves a card to a new id, e.g. when its session continues under a new id. */
   renameCard: (kind: AgentCenterCard['kind'], id: string, newId: string) => void;
   currentAgentCardId: string | null;
   setCurrentAgentCardId: (id: string | null) => void;
 }
+
+/** Cards are never removed by hand now, so the oldest fall off instead. */
+const MAX_CARDS = 200;
 
 export const useAgentCenterStore = create<AgentCenterState>()(
   persist(
@@ -34,15 +36,10 @@ export const useAgentCenterStore = create<AgentCenterState>()(
             return { cards: next };
           }
           added = true;
-          return { cards: [card, ...state.cards] };
+          return { cards: [card, ...state.cards].slice(0, MAX_CARDS) };
         });
         return added;
       },
-
-      removeCard: (card) =>
-        set((state) => ({
-          cards: state.cards.filter((c) => !(c.kind === card.kind && c.id === card.id)),
-        })),
 
       updateCard: (card) =>
         set((state) => ({
