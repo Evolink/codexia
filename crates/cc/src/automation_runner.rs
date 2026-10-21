@@ -53,42 +53,18 @@ impl AgentRunner for CcAgentRunner {
         )
         .await?;
         log::info!("[CC automation] Connected to Claude session {}", session_id);
+        // The CLI runs under `session_id`, so the run is recorded under it right away.
+        (spec.on_started)(session_id.as_str());
 
-        // `session_id` is only our local client key; the run must be recorded under the
-        // real CLI session id, which arrives with the first system message.
-        let real_session_id: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        // `/clear` in the prompt moves the client to a new key; disconnect that one.
+        let final_key: Arc<Mutex<String>> = Arc::new(Mutex::new(session_id.clone()));
         let on_message = {
-            let real_session_id = Arc::clone(&real_session_id);
-            let on_started = Arc::clone(&spec.on_started);
-            let client_key = session_id.clone();
-            let cc_state = self.cc_state.clone();
-            move |message: Message| {
-                let id = match &message {
-                    Message::System(system) => system.session_id.clone(),
-                    Message::Result(result) => Some(result.session_id.clone()),
-                    _ => None,
-                };
-                let Some(id) = id else { return };
-                {
-                    let mut slot = real_session_id.lock().unwrap();
-                    if slot.is_some() {
-                        return;
-                    }
-                    *slot = Some(id.clone());
+            let final_key = Arc::clone(&final_key);
+            move |key: &str, _message: Message| {
+                let mut slot = final_key.lock().unwrap();
+                if slot.as_str() != key {
+                    *slot = key.to_string();
                 }
-                log::info!(
-                    "[CC automation] Session {} reported CLI session id {}",
-                    client_key,
-                    id
-                );
-                // Reachable under the real id too, so the UI can interrupt the run.
-                let cc_state = cc_state.clone();
-                let client_key = client_key.clone();
-                let alias = id.clone();
-                tokio::spawn(async move {
-                    cc_state.alias_client(client_key.as_str(), alias).await;
-                });
-                on_started(id.as_str());
             }
         };
 
@@ -102,23 +78,11 @@ impl AgentRunner for CcAgentRunner {
         )
         .await;
 
-        let alias = real_session_id.lock().unwrap().clone();
-        if let Some(alias) = alias
-            && alias != session_id
-            && let Err(err) = session_service::disconnect(alias.as_str(), &self.cc_state).await
-        {
+        let final_key = final_key.lock().unwrap().clone();
+        if let Err(err) = session_service::disconnect(final_key.as_str(), &self.cc_state).await {
             log::warn!(
                 "failed to disconnect cc session {} for automation '{}': {}",
-                alias,
-                spec.task_id,
-                err
-            );
-        }
-
-        if let Err(err) = session_service::disconnect(session_id.as_str(), &self.cc_state).await {
-            log::warn!(
-                "failed to disconnect cc session {} for automation '{}': {}",
-                session_id,
+                final_key,
                 spec.task_id,
                 err
             );

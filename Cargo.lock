@@ -832,8 +832,8 @@ dependencies = [
 
 [[package]]
 name = "claude-agent-sdk-rs"
-version = "0.8.0"
-source = "git+https://github.com/milisp/claude-agent-sdk-rs?tag=v0.8.0#1d9bbaed097740c19f2f136d324dd0f54d5ca335"
+version = "0.9.0"
+source = "git+https://github.com/milisp/claude-agent-sdk-rs?tag=v0.9.0#644de71c08bb568190238b8a3973270fc7ca6d5c"
 dependencies = [
  "anyhow",
  "async-stream",
