@@ -13,7 +13,6 @@ vi.mock('@/services/codexService', () => ({
     turnInterrupt: vi.fn(),
   },
 }));
-vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 
 // Heavy collaborators that have nothing to do with the send path.
 vi.mock('./QueuedMessages', () => ({ QueuedMessages: () => null }));
@@ -49,6 +48,7 @@ vi.mock('./editor/ComposerEditor', () => ({
 }));
 
 import { useCodexStore } from '@/components/codex/stores';
+import { useWriterConflictStore } from '@/components/codex/stores/useWriterConflictStore';
 import { useInputStore } from '@/stores/useInputStore';
 import { Composer } from './Composer';
 
@@ -93,5 +93,40 @@ describe('Composer while a turn runs', () => {
     setThread(false);
     render(<Composer />);
     expect(screen.queryByRole('button', { name: 'Queue message' })).toBeNull();
+  });
+});
+
+describe('Composer sending to an idle thread', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useInputStore.setState({ inputValue: 'hello' });
+    useWriterConflictStore.setState({ locked: {}, handoff: null, recovering: false });
+  });
+
+  it('locks the thread and keeps the refused draft when another session owns it', async () => {
+    setThread(false);
+    turnStart.mockRejectedValue(
+      new Error('thread-store conflict: thread t1 already has an active writer')
+    );
+    render(<Composer />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() =>
+      expect(useWriterConflictStore.getState().locked.t1).toEqual({
+        draft: { text: 'hello', images: [] },
+      })
+    );
+  });
+
+  it('keeps the draft when the send fails for another reason', async () => {
+    setThread(false);
+    turnStart.mockRejectedValue(new Error('boom'));
+    render(<Composer />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => expect(useInputStore.getState().inputValue).toBe('hello'));
+    expect(useWriterConflictStore.getState().locked.t1).toBeUndefined();
   });
 });

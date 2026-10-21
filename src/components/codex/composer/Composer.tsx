@@ -6,6 +6,10 @@ import { AgentModelPanel } from '@/components/agent/AgentModelPanel';
 import { AgentModelTrigger } from '@/components/agent/AgentModelTrigger';
 import { useThreadGoal, useThreadStatus } from '@/components/codex/hooks';
 import { getRunningTurnId, useCodexStore } from '@/components/codex/stores';
+import {
+  isWriterConflict,
+  useWriterConflictStore,
+} from '@/components/codex/stores/useWriterConflictStore';
 import { ContextWindowWidget, ThreadCostWidget } from '@/components/codex/widget';
 import { FileMentionPopover } from '@/components/common';
 import { Button } from '@/components/ui/button';
@@ -52,6 +56,7 @@ export function Composer({ overrideSend, onAfterSend }: ComposerProps) {
   const [images, setImages] = useState<string[]>([]);
   const [slashDialog, setSlashDialog] = useState<SlashDialog | null>(null);
   const { inputValue, setInputValue, appendFileLinks } = useInputStore();
+  const handoff = useWriterConflictStore((s) => s.handoff);
   const { currentThreadId, inputFocusTrigger, goalEnabled, setGoalEnabled } = useCodexStore();
   const { addAgentCard, setCurrentAgentCardId } = useAgentCenterStore();
   const { cwd } = useWorkspaceStore.getState();
@@ -140,6 +145,17 @@ export function Composer({ overrideSend, onAfterSend }: ComposerProps) {
       setImages([]);
     } catch (error) {
       console.error(error);
+      if (isWriterConflict(error)) {
+        // The thread is now locked; keep the refused draft with it for Retry.
+        useWriterConflictStore.getState().lock(targetThreadId, { text, images });
+        setImages([]);
+        return;
+      }
+      // Give the draft back so the user can retry without retyping, unless they
+      // already started typing something new.
+      if (!useInputStore.getState().inputValue) {
+        setInputValue(text);
+      }
     }
   };
 
@@ -204,6 +220,14 @@ export function Composer({ overrideSend, onAfterSend }: ComposerProps) {
       console.error('Failed to clear goal:', error);
     }
   };
+
+  // Restores a draft handed back by the conflict notice, e.g. after a fork.
+  useEffect(() => {
+    if (!handoff) return;
+    setInputValue(handoff.text);
+    setImages(handoff.images);
+    useWriterConflictStore.getState().setHandoff(null);
+  }, [handoff, setInputValue]);
 
   return (
     <div>
@@ -361,6 +385,7 @@ export function Composer({ overrideSend, onAfterSend }: ComposerProps) {
                 ) : (
                   <Button
                     type="submit"
+                    aria-label="Send message"
                     disabled={!inputValue.trim() && images.length === 0}
                     size="icon"
                     className="h-10 w-10 md:h-8 md:w-8 rounded-full"

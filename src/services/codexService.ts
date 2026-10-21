@@ -19,6 +19,10 @@ import {
   useThreadQueueStore,
   useThreadReadStateStore,
 } from '@/components/codex/stores';
+import {
+  isWriterConflict,
+  useWriterConflictStore,
+} from '@/components/codex/stores/useWriterConflictStore';
 import { findProjectForCwd } from '@/features/projects/projectModel';
 import { useServerProjectsStore } from '@/features/projects/useServerProjectsStore';
 import { useWorkspaceStore } from '@/stores';
@@ -28,6 +32,7 @@ import {
   threadStart as apiThreadStart,
   gitCreateWorktree,
   listThreads,
+  readThread,
   skillList,
   threadCompactStart,
   threadFork,
@@ -329,10 +334,20 @@ export const codexService = {
       const historicalEvents = convertThreadHistoryToEvents(response.thread);
       const normalized = response.thread;
 
+      useWriterConflictStore.getState().unlock(threadId);
       set({ ...syncThreadToStore(threadId, normalized, historicalEvents) });
     } catch (error: unknown) {
-      console.error('[CodexService] threadResume error:', error);
-      throw error;
+      if (!isWriterConflict(error)) {
+        console.error('[CodexService] threadResume error:', error);
+        throw error;
+      }
+      // Another client owns the thread. Show its history read-only and lock the
+      // composer now, rather than waiting for a send to fail.
+      console.warn('[CodexService] thread is owned by another client:', threadId);
+      const { thread } = await readThread({ threadId, includeTurns: true });
+      const historicalEvents = convertThreadHistoryToEvents(thread);
+      set({ ...syncThreadToStore(threadId, thread, historicalEvents) });
+      useWriterConflictStore.getState().lock(threadId);
     }
   },
   async threadFork(threadId: string) {
