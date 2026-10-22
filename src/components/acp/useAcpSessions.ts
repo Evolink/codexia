@@ -12,7 +12,8 @@ import { openAcpSession } from './openSession';
  * listing RPC of its own.
  */
 export function useAcpSessions(directory: string) {
-  const { sessionId, entries } = useAcpStore();
+  const sessionId = useAcpStore((s) => s.sessionId);
+  const running = useAcpStore((s) => s.running);
   const [sessions, setSessions] = useState<AcpSessionRecord[]>([]);
   const [opening, setOpening] = useState<string | null>(null);
 
@@ -25,12 +26,13 @@ export function useAcpSessions(directory: string) {
     }
   }, [directory]);
 
-  // Re-list when the workspace changes, and after a turn lands in the store so
-  // a new session shows up with its title.
+  // Re-list when the workspace or open session changes, and when a turn starts
+  // or ends so a new session shows up with its title. Not per streamed entry:
+  // a session/load replay would re-list once for every replayed chunk.
   // biome-ignore lint/correctness/useExhaustiveDependencies: deliberate re-list triggers, not values refresh reads
   useEffect(() => {
     void refresh();
-  }, [refresh, sessionId, entries.length]);
+  }, [refresh, sessionId, running]);
 
   const open = useCallback(async (record: AcpSessionRecord) => {
     setOpening(record.sessionId);

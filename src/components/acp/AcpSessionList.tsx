@@ -2,6 +2,7 @@ import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAcpStore } from '@/stores/useAcpStore';
 import { formatThreadAge } from '@/utils/formatThreadAge';
+import { focusAcpComposer } from './focusComposer';
 import { useAcpSessions } from './useAcpSessions';
 
 /** Sidebar list of persisted ACP sessions for one project. */
@@ -20,7 +21,11 @@ export function AcpSessionList({ directory }: { directory: string }) {
           key={session.sessionId}
           role="button"
           tabIndex={0}
-          onClick={() => open(session)}
+          onClick={() => {
+            // Typing can start while the session loads; sending waits for it.
+            focusAcpComposer();
+            void open(session);
+          }}
           className={`group relative flex items-center gap-2 w-full text-left p-2 rounded-lg cursor-pointer transition-colors ${
             session.sessionId === sessionId ? 'bg-zinc-700/50' : 'hover:bg-zinc-800/30'
           }`}

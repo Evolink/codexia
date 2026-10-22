@@ -83,8 +83,10 @@ fn upsert_session_on(
 }
 
 /// Append one transcript entry, stored as the raw `session/update` payload.
-/// Also bumps `updated_at`, and fills the title from the first user message.
-pub fn append_update(session_id: &str, payload: &str) -> Result<(), String> {
+/// Also bumps `updated_at` when `touch` is set: only conversation content
+/// should move a session up the list, not the commands or modes an agent
+/// re-announces whenever the session is opened.
+pub fn append_update(session_id: &str, payload: &str, touch: bool) -> Result<(), String> {
     let conn = get_connection()?;
     let now = Utc::now().to_rfc3339();
     conn.execute(
@@ -92,6 +94,9 @@ pub fn append_update(session_id: &str, payload: &str) -> Result<(), String> {
         params![session_id, payload, now],
     )
     .map_err(|e| format!("Failed to append ACP session update: {}", e))?;
+    if !touch {
+        return Ok(());
+    }
     conn.execute(
         "UPDATE acp_sessions SET updated_at = ?1 WHERE session_id = ?2",
         params![now, session_id],
@@ -115,15 +120,25 @@ pub fn set_title_if_empty(session_id: &str, title: &str) -> Result<(), String> {
 /// Sessions for `cwd`, or all of them when `cwd` is `None`, newest first.
 /// Bot conversations are left out: they belong to a bot, not to a project, and
 /// listing them beside the project's own sessions would show each twice.
+/// Sessions nobody sent a prompt in are left out too: every agent start opens
+/// one, and switching between agents would otherwise pile up empty rows that
+/// sort to the top as their startup updates land.
 pub fn list_sessions(cwd: Option<&str>, limit: usize) -> Result<Vec<AcpSessionRecord>, String> {
-    let conn = get_connection()?;
+    list_sessions_on(&get_connection()?, cwd, limit)
+}
+
+fn list_sessions_on(
+    conn: &Connection,
+    cwd: Option<&str>,
+    limit: usize,
+) -> Result<Vec<AcpSessionRecord>, String> {
     let limit = if limit == 0 { 100 } else { limit.min(500) } as i64;
 
     let mut stmt = conn
         .prepare(
             "SELECT session_id, agent_id, agent_title, cwd, bot_id, title, created_at, updated_at
              FROM acp_sessions
-             WHERE (?1 IS NULL OR cwd = ?1) AND bot_id IS NULL
+             WHERE (?1 IS NULL OR cwd = ?1) AND bot_id IS NULL AND title IS NOT NULL
              ORDER BY updated_at DESC
              LIMIT ?2",
         )
@@ -264,5 +279,21 @@ mod tests {
 
         assert_eq!(owner(&conn, "old"), None);
         assert!(owner(&conn, "new").is_some());
+    }
+
+    #[test]
+    fn a_project_lists_only_sessions_with_a_prompt() {
+        let conn = conn();
+        upsert_session_on(&conn, "chat", "gemini", None, "/p", None).unwrap();
+        upsert_session_on(&conn, "empty", "keke", None, "/p", None).unwrap();
+        conn.execute("UPDATE acp_sessions SET title = 'hi' WHERE session_id = 'chat'", [])
+            .unwrap();
+
+        let ids: Vec<_> = list_sessions_on(&conn, Some("/p"), 0)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.session_id)
+            .collect();
+        assert_eq!(ids, vec!["chat"]);
     }
 }

@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
 import { captureBotOptions } from '@/stores/useBotOptionsStore';
 import { openAcpSession } from './openSession';
+import { restoreAcpCommands } from './restoreCommands';
 import { useAcpAgents } from './useAcpAgents';
 
 /**
@@ -50,6 +51,7 @@ export function useAcpConnection() {
         canAttachImages: res.initialize.agentCapabilities?.promptCapabilities?.image === true,
       });
       applySession(res.session);
+      void restoreAcpCommands(res.sessionId);
       // keke's own catalogue also configures bots, which are keke processes —
       // so a bot can be set up from this session without opening its chat.
       if (agentId === 'keke') captureBotOptions('', res.initialize, res.session);

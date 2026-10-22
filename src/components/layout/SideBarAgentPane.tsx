@@ -1,6 +1,7 @@
 import { ListFilter, Package2, Timer } from 'lucide-react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { focusAcpComposer } from '@/components/acp/focusComposer';
 import { useNewThread, useThreadList } from '@/components/codex/hooks';
 import { NewAgentButton } from '@/components/common/NewAgentButton';
 import { Button } from '@/components/ui/button';
@@ -120,6 +121,7 @@ export function SideBarAgentList() {
       // `restart` tears down the connection and asks the composer to reconnect
       // in the new workspace.
       useAcpStore.getState().restart();
+      focusAcpComposer();
     },
     [setCwd, setView]
   );

@@ -1,5 +1,6 @@
 import { acpCancel, acpNewSession } from '@/services/apiAdapt/acp';
 import { useAcpStore } from '@/stores/useAcpStore';
+import { restoreAcpCommands } from './restoreCommands';
 
 /**
  * Start another session on a live connection, reusing the running agent
@@ -17,6 +18,7 @@ export async function acpFreshSession(connectionId: string, cwd: string) {
     store.setPermission(null);
     store.setRunning(false);
     store.applySession(session);
+    void restoreAcpCommands(session?.sessionId ?? null);
     return true;
   } catch (e) {
     console.error('acp: failed to open a new session', e);
