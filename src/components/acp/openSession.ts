@@ -7,8 +7,9 @@ import {
   acpStart,
   acpStop,
 } from '@/services/apiAdapt/acp';
-import { useWorkspaceStore } from '@/stores';
+import { useLayoutStore, useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
+import { useBotUiStore } from '@/stores/useBotUiStore';
 import { applyAcpUpdate } from './applyUpdate';
 import { detachBotConnection } from './botConnection';
 import { restoreAcpCommands } from './restoreCommands';
@@ -28,6 +29,11 @@ export async function openAcpSession(record: AcpSessionRecord) {
 
   // A bot's process would record this session as the bot's.
   detachBotConnection();
+  // Bots and chats share one pane and one ACP store. Leaving the bot selected
+  // would keep rendering this chat inside the bot's view, and let the bot's
+  // own late replay write into it.
+  useBotUiStore.getState().setSelectedBotId(null);
+  useLayoutStore.getState().setView('agent');
   const store = useAcpStore.getState();
   // The previous turn keeps running in the agent otherwise — it is no longer
   // visible anywhere once the pane shows another session, and its prompt would
