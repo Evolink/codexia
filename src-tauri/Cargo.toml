@@ -70,6 +70,7 @@ codex-finder = { workspace = true }
 codexia-automation = { workspace = true }
 codexia-codex = { workspace = true }
 codexia-acp = { workspace = true }
+codexia-bots = { workspace = true }
 codexia-cc = { workspace = true }
 codexia-db = { workspace = true }
 codexia-git = { workspace = true }

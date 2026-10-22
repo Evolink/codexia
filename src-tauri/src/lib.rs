@@ -125,7 +125,13 @@ pub fn run() {
 
                 app.manage(commands::remote::RemoteState::new(remote_event_tx));
                 app.manage(CCState::new(Arc::clone(&event_sink)));
-                app.manage(codexia_acp::AcpState::new(Arc::clone(&event_sink)));
+                app.manage(codexia_acp::AcpState::new(
+                    Arc::clone(&event_sink),
+                    Arc::new(codexia_db::acp_sessions::SqliteSessionStore),
+                ));
+                app.manage(codexia_bots::Bots::new(
+                    app.state::<codexia_acp::AcpState>().inner().clone(),
+                ));
 
                 let codex_init_started_at = Instant::now();
                 let init_result = tauri::async_runtime::block_on(async {
@@ -168,8 +174,8 @@ pub fn run() {
                     app.state::<CCState>().inner().clone(),
                 ));
                 let codex_runner = Arc::new(codex::CodexAgentRunner::new(codex_runner_client));
-                let bot_runner = Arc::new(codexia_acp::BotAgentRunner::new(
-                    app.state::<codexia_acp::AcpState>().inner().clone(),
+                let bot_runner = Arc::new(codexia_bots::BotAgentRunner::new(
+                    app.state::<codexia_bots::Bots>().inner().clone(),
                 ));
                 let automation = match tauri::async_runtime::block_on(
                     codexia_automation::AutomationHandle::start(

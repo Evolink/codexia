@@ -11,6 +11,7 @@ use serde_json::Value;
 use tokio::sync::broadcast;
 
 use codexia_acp::AcpState;
+use codexia_bots::Bots;
 use codexia_automation::AutomationHandle;
 use codexia_cc::CCState;
 use codexia_codex::AppState;
@@ -27,6 +28,7 @@ pub struct WebServerState {
     pub automation: Option<AutomationHandle>,
     pub cc_state: Arc<CCState>,
     pub acp_state: Arc<AcpState>,
+    pub bots: Arc<Bots>,
     pub(crate) sleep_state: Arc<SleepState>,
     pub(crate) terminal_state: Arc<WebTerminalState>,
     pub(crate) fs_watch_state: Arc<WebWatchState>,
@@ -47,6 +49,7 @@ impl WebServerState {
         automation: Option<AutomationHandle>,
         cc_state: Arc<CCState>,
         acp_state: Arc<AcpState>,
+        bots: Arc<Bots>,
         sleep_state: Arc<SleepState>,
         terminal_state: Arc<WebTerminalState>,
         fs_watch_state: Arc<WebWatchState>,
@@ -60,6 +63,7 @@ impl WebServerState {
             automation,
             cc_state,
             acp_state,
+            bots,
             sleep_state,
             terminal_state,
             fs_watch_state,

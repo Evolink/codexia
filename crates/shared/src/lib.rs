@@ -10,3 +10,4 @@ pub mod state;
 
 pub mod agent_runner;
 pub mod event_sink;
+pub mod session_store;

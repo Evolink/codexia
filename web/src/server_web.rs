@@ -29,9 +29,13 @@ pub async fn start_web_server_with_events(
     }
     log::info!("[web] requested port: {}", port);
 
-    let acp_state = codexia_acp::AcpState::new(Arc::new(WebSocketEventSink::new(event_tx.clone())));
+    let acp_state = codexia_acp::AcpState::new(
+        Arc::new(WebSocketEventSink::new(event_tx.clone())),
+        Arc::new(codexia_db::acp_sessions::SqliteSessionStore),
+    );
+    let bots = codexia_bots::Bots::new(acp_state.clone());
     // A bot calls back into this server, not the desktop's loopback one.
-    acp_state.set_api_port(port);
+    bots.set_api_port(port);
 
     let automation_sink: Arc<dyn EventSink> = Arc::new(WebSocketEventSink::new(event_tx.clone()));
     let automation = codexia_automation::AutomationHandle::start(
@@ -40,7 +44,7 @@ pub async fn start_web_server_with_events(
                 codex_state.as_ref().map(|s| s.codex.clone()),
             )),
             Arc::new(codexia_cc::CcAgentRunner::new(cc_state.as_ref().clone())),
-            Arc::new(codexia_acp::BotAgentRunner::new(acp_state.clone())),
+            Arc::new(codexia_bots::BotAgentRunner::new(bots.clone())),
         ],
         automation_sink,
     )
@@ -61,6 +65,7 @@ pub async fn start_web_server_with_events(
         Some(automation),
         cc_state,
         Arc::new(acp_state),
+        Arc::new(bots),
         Arc::new(SleepState::default()),
         Arc::new(super::terminal::WebTerminalState::default()),
         Arc::new(WebWatchState::default()),
@@ -187,6 +192,7 @@ pub async fn serve_api<F>(
     automation: Option<codexia_automation::AutomationHandle>,
     cc_state: Arc<CCState>,
     acp_state: Arc<codexia_acp::AcpState>,
+    bots: Arc<codexia_bots::Bots>,
     event_tx: broadcast::Sender<(String, serde_json::Value)>,
     host: &str,
     port: u16,
@@ -202,6 +208,7 @@ where
         automation,
         cc_state,
         acp_state,
+        bots,
         Arc::new(SleepState::default()),
         Arc::new(super::terminal::WebTerminalState::default()),
         Arc::new(WebWatchState::default()),

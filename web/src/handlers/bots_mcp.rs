@@ -197,7 +197,7 @@ fn leave_for_person(
         Ok(item) => item,
         Err(e) => return text_result(format!("could not save it: {e}"), true),
     };
-    state.acp_state.notify_inbox(&item);
+    state.bots.notify_inbox(&item);
     if kind == "draft" {
         text_result(
             "Saved for your person to review. Do not send it yourself. If they press Send, \
@@ -278,7 +278,7 @@ async fn call_tool(state: &WebServerState, from: &str, grant: &Grant, params: &V
             codexia_telemetry::track(codexia_telemetry::Event::BotAsk);
 
             match state
-                .acp_state
+                .bots
                 .run_bot_unattended(
                     &target.id,
                     &prompt,

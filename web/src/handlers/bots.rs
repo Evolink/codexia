@@ -212,14 +212,14 @@ pub(crate) async fn api_resolve_bot_inbox(
     let item = codexia_db::bot_inbox::resolve(&item.id, status, body)
         .map_err(err)?
         .ok_or_else(|| err("Already handled".to_string()))?;
-    state.acp_state.notify_inbox(&item);
+    state.bots.notify_inbox(&item);
 
     if let Some(prompt) = resume_prompt(&item, params.note.as_deref()) {
-        let acp = state.acp_state.clone();
+        let bots = state.bots.clone();
         let trigger = serde_json::json!({ "kind": item.kind, "name": item.title });
         let (bot_id, session_id) = (item.bot_id.clone(), item.session_id.clone());
         tokio::spawn(async move {
-            if let Err(e) = acp.resume_bot(&bot_id, &session_id, &prompt, trigger).await {
+            if let Err(e) = bots.resume_bot(&bot_id, &session_id, &prompt, trigger).await {
                 log::warn!("bot {bot_id}: could not continue after the inbox item: {e}");
             }
         });

@@ -18,7 +18,7 @@ impl EventSink for PrintSink {
 #[tokio::test]
 #[ignore]
 async fn gemini_prompt_roundtrip() {
-    let state = AcpState::new(Arc::new(PrintSink));
+    let state = AcpState::new(Arc::new(PrintSink), Arc::new(codexia_shared::session_store::NoSessionStore));
     let cwd = std::env::temp_dir().display().to_string();
     let started = state.start("gemini", &cwd, None, None).await.expect("start");
     println!("initialize: {}", started.initialize);
@@ -65,7 +65,7 @@ async fn gemini_prompt_roundtrip() {
 #[tokio::test]
 #[ignore]
 async fn grok_reports_session_config() {
-    let state = AcpState::new(Arc::new(PrintSink));
+    let state = AcpState::new(Arc::new(PrintSink), Arc::new(codexia_shared::session_store::NoSessionStore));
     let cwd = std::env::temp_dir().display().to_string();
     let started = state.start("grok", &cwd, None, None).await.expect("start");
     let session = started.session.expect("session/new result");

@@ -1,5 +1,6 @@
 use chrono::Utc;
 use rusqlite::{Connection, params};
+use codexia_shared::session_store::SessionStore;
 use serde::{Deserialize, Serialize};
 
 use super::get_connection;
@@ -220,6 +221,30 @@ pub fn get_updates(session_id: &str) -> Result<Vec<serde_json::Value>, String> {
         }
     }
     Ok(updates)
+}
+
+/// SQLite-backed [`SessionStore`], what the ACP client records into.
+pub struct SqliteSessionStore;
+
+impl SessionStore for SqliteSessionStore {
+    fn record_session(
+        &self,
+        session_id: &str,
+        agent_id: &str,
+        agent_title: Option<&str>,
+        cwd: &str,
+        bot_id: Option<&str>,
+    ) -> Result<(), String> {
+        upsert_session(session_id, agent_id, agent_title, cwd, bot_id)
+    }
+
+    fn append_update(&self, session_id: &str, payload: &str, touch: bool) -> Result<(), String> {
+        append_update(session_id, payload, touch)
+    }
+
+    fn set_title_if_empty(&self, session_id: &str, title: &str) -> Result<(), String> {
+        set_title_if_empty(session_id, title)
+    }
 }
 
 pub fn delete_session(session_id: &str) -> Result<(), String> {

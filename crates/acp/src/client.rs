@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::time::Duration;
 
 use codexia_shared::event_sink::EventSink;
+use codexia_shared::session_store::SessionStore;
 use dashmap::DashMap;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -181,13 +182,14 @@ impl WaitClock {
         self.state.lock().unwrap_or_else(|e| e.into_inner()).open > 0
     }
 
-    #[cfg(test)]
-    pub(crate) fn start_for_test(&self) {
+    /// Open a wait by hand, for tests of code that budgets around the clock.
+    #[doc(hidden)]
+    pub fn start_for_test(&self) {
         self.start();
     }
 
-    #[cfg(test)]
-    pub(crate) fn end_for_test(&self) {
+    #[doc(hidden)]
+    pub fn end_for_test(&self) {
         self.end();
     }
 
@@ -299,6 +301,7 @@ pub struct AcpClient {
     /// was announced, so a client that was not listening can still list it.
     waiting_requests: Arc<DashMap<String, Value>>,
     sink: Arc<dyn EventSink>,
+    store: Arc<dyn SessionStore>,
 }
 
 impl AcpClient {
@@ -311,6 +314,7 @@ impl AcpClient {
         bot_id: Option<String>,
         policy: ConnectionPolicy,
         sink: Arc<dyn EventSink>,
+        store: Arc<dyn SessionStore>,
     ) -> Result<(Arc<Self>, Value), String> {
         let mut cmd = Command::new(&agent.command);
         cmd.args(&agent.args);
@@ -353,6 +357,7 @@ impl AcpClient {
             pending_permissions: Arc::new(DashMap::new()),
             waiting_requests: Arc::new(DashMap::new()),
             sink,
+            store,
         });
 
         // stdout: JSON-RPC frames, one per line.
@@ -449,7 +454,7 @@ impl AcpClient {
             crate::delegation::bind(token, &session_id);
         }
         self.track_session(session_id.clone()).await;
-        if let Err(e) = codexia_db::acp_sessions::upsert_session(
+        if let Err(e) = self.store.record_session(
             &session_id,
             &self.agent_id,
             Some(&self.agent_name),
@@ -483,7 +488,7 @@ impl AcpClient {
         self.replaying.remove(session_id);
         let res = res?;
         self.track_session(session_id.to_string()).await;
-        if let Err(e) = codexia_db::acp_sessions::upsert_session(
+        if let Err(e) = self.store.record_session(
             session_id,
             &self.agent_id,
             Some(&self.agent_name),
@@ -654,7 +659,7 @@ impl AcpClient {
             turn["_meta"] = json!({ TRIGGER_META: trigger });
         }
         self.persist(&session_id, &turn);
-        if let Err(e) = codexia_db::acp_sessions::set_title_if_empty(&session_id, text) {
+        if let Err(e) = self.store.set_title_if_empty(&session_id, text) {
             log::warn!("acp: failed to set session title: {e}");
         }
         self.session_request(
@@ -783,7 +788,7 @@ impl AcpClient {
             )
         );
         if let Err(e) =
-            codexia_db::acp_sessions::append_update(session_id, &update.to_string(), touch)
+            self.store.append_update(session_id, &update.to_string(), touch)
         {
             log::warn!("acp: failed to persist session update: {e}");
         }
@@ -1068,6 +1073,7 @@ fn image_block(path: &str) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codexia_shared::session_store::NoSessionStore;
 
     #[test]
     fn only_the_user_turn_counts_as_an_echo() {
@@ -1138,7 +1144,7 @@ for line in sys.stdin:
             env: [("POLICY".into(), advertised.into()), ("REQUIRE".into(), require.into())].into(),
             available: true, local: true,
         };
-        AcpClient::spawn("fixture".into(), &agent, None, Some("caller".into()), policy, Arc::new(QuietSink)).await
+        AcpClient::spawn("fixture".into(), &agent, None, Some("caller".into()), policy, Arc::new(QuietSink), Arc::new(NoSessionStore)).await
     }
 
     #[cfg(unix)]
@@ -1371,7 +1377,7 @@ sys.stdin.read()
             available: true, local: true,
         };
         let policy = ConnectionPolicy { unattended: Some(unattended), ..Default::default() };
-        AcpClient::spawn("asker".into(), &agent, None, Some("bot-1".into()), policy, Arc::new(QuietSink))
+        AcpClient::spawn("asker".into(), &agent, None, Some("bot-1".into()), policy, Arc::new(QuietSink), Arc::new(NoSessionStore))
             .await
             .unwrap()
             .0

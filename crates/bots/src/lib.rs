@@ -5,17 +5,23 @@
 //! scheduled routine and another bot asking for help all start a bot through
 //! here, so a setting cannot take effect in one of them and not the others.
 
+mod runner;
+
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
 
+use async_trait::async_trait;
+use codexia_acp::{
+    AcpAgentDef, AcpClient, AcpStartResult, AcpState, BotHooks, ConnectionPolicy,
+    UnattendedApprovals, WaitClock, find_preset,
+};
 use codexia_db::bots::{BotRecord, parse_list};
 use codexia_shared::sleep::KeepAwake;
 use serde_json::{Value, json};
 
-use crate::agents::{AcpAgentDef, find_preset};
-use crate::client::{AcpClient, ConnectionPolicy, UnattendedApprovals, WaitClock};
+pub use runner::BotAgentRunner;
 
 /// Event carrying a bot's background activity: `{ botId, sessionId, status }`,
 /// where `status` is `working`, `waiting` (a step needs a person), `done`,
@@ -151,7 +157,7 @@ pub fn agent_def(bot: &BotRecord) -> Result<AcpAgentDef, String> {
 /// The built-in `codexia-bots` server always comes first: it carries drafts
 /// and hand-backs, and, when `delegate` is set, the tools to ask other bots.
 pub async fn mcp_servers(bot: &BotRecord, api_port: u16, delegate: bool) -> Vec<Value> {
-    use crate::mcp::read_mcp_servers;
+    use codexia_acp::mcp::read_mcp_servers;
 
     let mut servers = vec![bots_server(&bot.id, api_port, delegate)];
     let wanted = parse_list(&bot.mcp_servers);
@@ -169,8 +175,8 @@ pub async fn mcp_servers(bot: &BotRecord, api_port: u16, delegate: bool) -> Vec<
     servers
 }
 
-fn selected_servers(bot_id: &str, wanted: Vec<String>, configured: &crate::mcp::McpServers) -> Vec<Value> {
-    use crate::mcp::acp_entry;
+fn selected_servers(bot_id: &str, wanted: Vec<String>, configured: &codexia_acp::mcp::McpServers) -> Vec<Value> {
+    use codexia_acp::mcp::acp_entry;
     let mut servers = Vec::new();
     for name in wanted {
         let Some(name) = name.strip_prefix("keke:") else {
@@ -197,7 +203,7 @@ fn selected_servers(bot_id: &str, wanted: Vec<String>, configured: &crate::mcp::
 /// bots. The URL identifies the caller; the bearer capability authenticates
 /// that identity and says whether it may ask.
 fn bots_server(bot_id: &str, api_port: u16, ask: bool) -> Value {
-    let capability = crate::delegation::issue(bot_id, ask);
+    let capability = codexia_acp::delegation::issue(bot_id, ask);
     json!({
         "type": "http",
         "name": "codexia-bots",
@@ -429,7 +435,78 @@ where
     }
 }
 
-impl crate::AcpState {
+/// Runs bots on top of an [`AcpState`]: starts them from their stored
+/// settings, runs unattended turns and keeps their run records.
+#[derive(Clone)]
+pub struct Bots {
+    acp: AcpState,
+    /// Port of the Codexia API a bot's agent calls back into (the bots MCP
+    /// server). The desktop's loopback server by default; a standalone web
+    /// server sets its own.
+    api_port: Arc<AtomicU16>,
+}
+
+struct Hooks {
+    api_port: Arc<AtomicU16>,
+}
+
+#[async_trait]
+impl BotHooks for Hooks {
+    async fn start(&self, acp: &AcpState, bot_id: &str, cwd: &str) -> Result<AcpStartResult, String> {
+        let bot = codexia_db::bots::get_bot(bot_id)?
+            .ok_or_else(|| format!("No bot with id `{bot_id}`"))?;
+        let policy = policy(&bot, self.api_port.load(Ordering::Relaxed), false, true).await;
+        // An empty `cwd` makes the spawn fail with ENOENT: a bot without a
+        // project gets its own folder.
+        let cwd = if cwd.is_empty() { work_dir(&bot)? } else { cwd.to_string() };
+
+        let connection_id = uuid::Uuid::new_v4().to_string();
+        let (client, initialize) = acp
+            .connect(connection_id.clone(), &agent_def(&bot)?, &cwd, Some(bot.id.clone()), policy)
+            .await?;
+        select_provider(&client, &bot).await;
+        let opened =
+            open_with_signed_in_route(&client, &bot, &initialize, || client.new_session(&cwd)).await;
+        let started = AcpStartResult::new(connection_id, initialize, opened);
+        if let Some(session_id) = &started.session_id {
+            apply_settings(&client, session_id, &bot).await;
+        }
+        Ok(started)
+    }
+
+    async fn session_opened(&self, client: &AcpClient, session_id: &str) {
+        let Some(bot_id) = client.bot_id.as_deref() else { return };
+        match codexia_db::bots::get_bot(bot_id) {
+            Ok(Some(bot)) => apply_settings(client, session_id, &bot).await,
+            Ok(None) => {}
+            Err(e) => log::warn!("bots: could not read bot {bot_id}: {e}"),
+        }
+    }
+
+    fn work_dir(&self, bot_id: &str) -> Result<String, String> {
+        let bot = codexia_db::bots::get_bot(bot_id)?
+            .ok_or_else(|| format!("No bot with id `{bot_id}`"))?;
+        work_dir(&bot)
+    }
+}
+
+impl Bots {
+    /// Wrap `acp` and install the bot hooks on it, so a connection started
+    /// with a bot id is built from the bot's stored settings.
+    pub fn new(acp: AcpState) -> Self {
+        let api_port = Arc::new(AtomicU16::new(LOCAL_PORT));
+        acp.set_bot_hooks(Arc::new(Hooks { api_port: Arc::clone(&api_port) }));
+        Self { acp, api_port }
+    }
+
+    pub fn set_api_port(&self, port: u16) {
+        self.api_port.store(port, Ordering::Relaxed);
+    }
+
+    pub fn api_port(&self) -> u16 {
+        self.api_port.load(Ordering::Relaxed)
+    }
+
     /// Run one prompt on a bot with nobody watching: its own short-lived
     /// process, a fresh session filed under the bot, permission requests
     /// answered from the bot's trust level and standing approvals.
@@ -509,7 +586,7 @@ impl crate::AcpState {
         approvals.waiting.on_change({
             let awake = Arc::clone(&awake);
             let session_cell = Arc::clone(&session_cell);
-            let sink = self.sink();
+            let sink = self.acp.sink();
             let bot_id = bot.id.clone();
             let run_id = connection_id.clone();
             move |waiting| {
@@ -528,16 +605,10 @@ impl crate::AcpState {
             }
         });
 
-        let (client, initialize) = AcpClient::spawn(
-            connection_id.clone(),
-            &agent_def(&bot)?,
-            Some(&cwd),
-            Some(bot.id.clone()),
-            policy,
-            self.sink(),
-        )
-        .await?;
-        self.insert(connection_id.clone(), Arc::clone(&client));
+        let (client, initialize) = self
+            .acp
+            .connect(connection_id.clone(), &agent_def(&bot)?, &cwd, Some(bot.id.clone()), policy)
+            .await?;
 
         let result = async {
             select_provider(&client, &bot).await;
@@ -576,7 +647,7 @@ impl crate::AcpState {
         }
         .await;
 
-        let _ = self.stop(&connection_id).await;
+        let _ = self.acp.stop(&connection_id).await;
         drop(awake.lock().unwrap_or_else(|e| e.into_inner()).take());
         let session_id = result?;
 
@@ -606,12 +677,13 @@ impl crate::AcpState {
         trigger: Value,
     ) -> Result<RunReport, String> {
         let holders: Vec<String> = self
+            .acp
             .connections()
             .filter(|c| c.bot_id.as_deref() == Some(bot_id) && c.has_session(session_id))
             .map(|c| c.connection_id.clone())
             .collect();
         for connection_id in holders {
-            let _ = self.stop(&connection_id).await;
+            let _ = self.acp.stop(&connection_id).await;
         }
         self.run_bot_unattended(bot_id, prompt, None, true, trigger, Some(session_id), |_| {})
             .await
@@ -619,7 +691,7 @@ impl crate::AcpState {
 
     /// Tell every client a bot left something for its person.
     pub fn notify_inbox(&self, item: &codexia_db::bot_inbox::BotInboxItem) {
-        self.sink().emit(INBOX_EVENT, json!({ "botId": item.bot_id, "item": item }));
+        self.acp.sink().emit(INBOX_EVENT, json!({ "botId": item.bot_id, "item": item }));
     }
 
     fn emit_bot(&self, bot_id: &str, session_id: &str, status: &str) {
@@ -632,7 +704,7 @@ impl crate::AcpState {
                 _ => unreachable!(),
             }
         }
-        self.sink().emit(
+        self.acp.sink().emit(
             BOT_EVENT,
             json!({ "botId": bot_id, "sessionId": session_id, "status": status }),
         );
@@ -677,9 +749,9 @@ mod tests {
                 assert_eq!(policy.mcp_servers.len(), 1);
                 assert_eq!(policy.unattended.is_some(), unattended);
                 let token = policy.mcp_servers[0]["headers"][0]["value"].as_str().unwrap();
-                let grant = crate::delegation::grant(token, &bot.id).unwrap();
+                let grant = codexia_acp::delegation::grant(token, &bot.id).unwrap();
                 assert_eq!(grant.ask, delegate);
-                crate::delegation::revoke(token);
+                codexia_acp::delegation::revoke(token);
             }
         }
     }
@@ -791,9 +863,9 @@ mod tests {
         assert_eq!(server["url"], "http://127.0.0.1:9000/mcp/bots?from=bot-1");
         assert_eq!(server["type"], "http");
         let token = server["headers"][0]["value"].as_str().unwrap();
-        assert!(crate::delegation::verify(token, "bot-1"));
-        assert!(!crate::delegation::verify(token, "bot-2"));
-        crate::delegation::revoke(token);
+        assert!(codexia_acp::delegation::verify(token, "bot-1"));
+        assert!(!codexia_acp::delegation::verify(token, "bot-2"));
+        codexia_acp::delegation::revoke(token);
     }
 
     #[test]
