@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use codexia_acp::AcpState;
+use codexia_bots::{BOT_EVENT, Bots, RunReport};
 use codexia_db::bots::{BotPatch, create_bot, update_bot};
 use codexia_shared::event_sink::EventSink;
 use serde_json::{Value, json};
@@ -22,7 +23,7 @@ struct RecordingSink(Mutex<Vec<(String, Value)>>);
 
 impl EventSink for RecordingSink {
     fn emit(&self, event: &str, payload: Value) {
-        if event == codexia_acp::BOT_EVENT {
+        if event == BOT_EVENT {
             println!("[{event}] {payload}");
         }
         self.0.lock().unwrap().push((event.to_string(), payload));
@@ -35,7 +36,7 @@ impl RecordingSink {
             .lock()
             .unwrap()
             .iter()
-            .filter(|(e, p)| e == codexia_acp::BOT_EVENT && p["botId"] == bot_id)
+            .filter(|(e, p)| e == BOT_EVENT && p["botId"] == bot_id)
             .filter_map(|(_, p)| p["status"].as_str().map(str::to_string))
             .collect()
     }
@@ -94,20 +95,20 @@ fn new_bot(home: &Path, name: &str) -> String {
 
 /// Run the bot, answer its payment request with `answer`, and return the report.
 async fn run_and_answer(
-    state: &Arc<AcpState>,
+    state: &Arc<(AcpState, Bots)>,
     bot_id: &str,
     answer: &str,
-) -> codexia_acp::RunReport {
+) -> RunReport {
     let run = tokio::spawn({
         let state = Arc::clone(state);
         let bot_id = bot_id.to_string();
-        async move { state.run_bot_unattended(&bot_id, PROMPT, None, false, json!({ "kind": "routine", "name": "live test" }), None, |_| {}).await }
+        async move { state.1.run_bot_unattended(&bot_id, PROMPT, None, false, json!({ "kind": "routine", "name": "live test" }), None, |_| {}).await }
     });
 
     let mut run = run;
     let waiting = tokio::time::timeout(Duration::from_secs(300), async {
         loop {
-            if let Some(w) = state.waiting_approvals(Some(bot_id)).into_iter().next() {
+            if let Some(w) = state.0.waiting_approvals(Some(bot_id)).into_iter().next() {
                 return w;
             }
             if run.is_finished() {
@@ -133,6 +134,7 @@ async fn run_and_answer(
         .unwrap_or_else(|| panic!("no `{answer}` option in {options:?}"));
 
     state
+        .0
         .respond_permission(
             waiting["connectionId"].as_str().unwrap(),
             waiting["requestId"].as_str().unwrap(),
@@ -154,7 +156,8 @@ async fn run_and_answer(
 async fn payment_waits_for_a_person() {
     let home = scratch_home();
     let sink = Arc::new(RecordingSink::default());
-    let state = Arc::new(AcpState::new(sink.clone()));
+    let acp = AcpState::new(sink.clone(), Arc::new(codexia_db::acp_sessions::SqliteSessionStore));
+    let state = Arc::new((acp.clone(), Bots::new(acp)));
 
     // Allowed: the payment runs once and the run is not blocked.
     let allowed = new_bot(&home, "allow-bot");

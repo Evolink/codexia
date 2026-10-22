@@ -163,6 +163,10 @@ pub fn start_server(
         .try_state::<codexia_acp::AcpState>()
         .map(|s| Arc::new(s.inner().clone()))
         .ok_or_else(|| "ACP state is not initialized".to_string())?;
+    let bots = app
+        .try_state::<codexia_bots::Bots>()
+        .map(|s| Arc::new(s.inner().clone()))
+        .ok_or_else(|| "Bots are not initialized".to_string())?;
     // Reuse the desktop's scheduler rather than starting a second one.
     let automation = app
         .try_state::<codexia_automation::AutomationHandle>()
@@ -177,6 +181,7 @@ pub fn start_server(
             automation,
             cc,
             acp,
+            bots,
             event_tx,
             &serve_host,
             REMOTE_PORT,

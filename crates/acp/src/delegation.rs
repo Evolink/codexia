@@ -30,7 +30,7 @@ fn registry() -> &'static Mutex<HashMap<String, Entry>> {
     REGISTRY.get_or_init(Mutex::default)
 }
 
-pub(crate) fn issue(caller: &str, ask: bool) -> String {
+pub fn issue(caller: &str, ask: bool) -> String {
     let token = format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
     let mut entries = registry().lock().unwrap();
     entries.retain(|_, entry| entry.expires > Instant::now());
@@ -56,13 +56,13 @@ pub fn verify(token: &str, caller: &str) -> bool {
 }
 
 /// Record which session a capability was handed to.
-pub(crate) fn bind(token: &str, session_id: &str) {
+pub fn bind(token: &str, session_id: &str) {
     if let Some(entry) = registry().lock().unwrap().get_mut(token) {
         entry.session = Some(session_id.to_string());
     }
 }
 
-pub(crate) fn revoke(token: &str) {
+pub fn revoke(token: &str) {
     registry().lock().unwrap().remove(token);
 }
 

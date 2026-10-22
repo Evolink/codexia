@@ -4,14 +4,14 @@ use async_trait::async_trait;
 
 use codexia_shared::agent_runner::{AgentRunOutcome, AgentRunSpec, AgentRunner};
 
-use crate::AcpState;
+use crate::Bots;
 
 pub struct BotAgentRunner {
-    state: AcpState,
+    state: Bots,
 }
 
 impl BotAgentRunner {
-    pub fn new(state: AcpState) -> Self {
+    pub fn new(state: Bots) -> Self {
         Self { state }
     }
 }

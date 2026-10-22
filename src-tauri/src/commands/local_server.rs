@@ -13,7 +13,7 @@ use codexia_codex::AppState;
 /// only when the user turns remote access on, this one is always up on
 /// `127.0.0.1` so the frontend can call the same HTTP handlers the web build
 /// uses instead of a parallel `#[tauri::command]` per endpoint.
-pub const LOCAL_PORT: u16 = codexia_acp::bots::LOCAL_PORT;
+pub const LOCAL_PORT: u16 = codexia_bots::LOCAL_PORT;
 
 /// Starts the loopback API server for the app's own lifetime.
 ///
@@ -39,6 +39,13 @@ pub fn start_local_server(app: &AppHandle, event_tx: broadcast::Sender<(String, 
             return;
         }
     };
+    let bots = match app.try_state::<codexia_bots::Bots>() {
+        Some(s) => Arc::new(s.inner().clone()),
+        None => {
+            log::warn!("[local-server] Bots not initialized; skipping local server startup");
+            return;
+        }
+    };
     // Managed as `AutomationState` (an `Option`), not as a bare handle — asking
     // for the handle type directly always misses and silently leaves the
     // automation endpoints reporting "automation runtime is not available".
@@ -52,6 +59,7 @@ pub fn start_local_server(app: &AppHandle, event_tx: broadcast::Sender<(String, 
             automation,
             cc,
             acp,
+            bots,
             event_tx,
             "127.0.0.1",
             LOCAL_PORT,

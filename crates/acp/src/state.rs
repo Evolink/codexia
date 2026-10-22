@@ -1,10 +1,13 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::OnceLock;
 
 use codexia_shared::event_sink::EventSink;
+use codexia_shared::session_store::SessionStore;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use async_trait::async_trait;
 
 use crate::agents::{AcpAgentDef, find_preset};
 use crate::client::{AcpClient, ConnectionPolicy};
@@ -23,109 +26,9 @@ pub struct AcpStartResult {
     pub session_error: Option<String>,
 }
 
-#[derive(Clone)]
-pub struct AcpState {
-    connections: Arc<DashMap<String, Arc<AcpClient>>>,
-    sink: Arc<dyn EventSink>,
-    /// Port of the Codexia API a bot's agent calls back into (the bots MCP
-    /// server). The desktop's loopback server by default; a standalone web
-    /// server sets its own.
-    api_port: Arc<AtomicU16>,
-}
-
-impl AcpState {
-    pub fn new(sink: Arc<dyn EventSink>) -> Self {
-        Self {
-            connections: Arc::new(DashMap::new()),
-            sink,
-            api_port: Arc::new(AtomicU16::new(crate::bots::LOCAL_PORT)),
-        }
-    }
-
-    pub fn set_api_port(&self, port: u16) {
-        self.api_port.store(port, Ordering::Relaxed);
-    }
-
-    pub fn api_port(&self) -> u16 {
-        self.api_port.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn sink(&self) -> Arc<dyn EventSink> {
-        self.sink.clone()
-    }
-
-    /// Every running connection.
-    pub(crate) fn connections(&self) -> impl Iterator<Item = Arc<AcpClient>> + '_ {
-        self.connections.iter().map(|c| c.value().clone())
-    }
-
-    pub(crate) fn insert(&self, connection_id: String, client: Arc<AcpClient>) {
-        self.connections.insert(connection_id, client);
-    }
-
-    /// Spawn `agent_id` (a preset id, or a custom definition) and open a session in `cwd`.
-    pub async fn start(
-        &self,
-        agent_id: &str,
-        cwd: &str,
-        custom: Option<AcpAgentDef>,
-        bot_id: Option<String>,
-    ) -> Result<AcpStartResult, String> {
-        // A bot is always built from its stored settings, so what the Bot tab
-        // runs and what a routine runs cannot drift apart.
-        let bot = match &bot_id {
-            Some(id) => Some(
-                codexia_db::bots::get_bot(id)?.ok_or_else(|| format!("No bot with id `{id}`"))?,
-            ),
-            None => None,
-        };
-        let (agent, policy) = match (&bot, custom) {
-            (Some(bot), _) => (
-                crate::bots::agent_def(bot)?,
-                crate::bots::policy(bot, self.api_port(), false, true).await,
-            ),
-            (None, Some(a)) => (a, ConnectionPolicy::default()),
-            (None, None) => (
-                find_preset(agent_id).ok_or_else(|| format!("unknown ACP agent: {agent_id}"))?,
-                ConnectionPolicy::default(),
-            ),
-        };
-        // An empty `cwd` makes the spawn fail with ENOENT: a bot without a
-        // project gets its own folder, anything else starts in the home folder.
-        let cwd = match (&bot, cwd.is_empty()) {
-            (_, false) => cwd.to_string(),
-            (Some(bot), true) => crate::bots::work_dir(bot)?,
-            (None, true) => dirs::home_dir()
-                .ok_or("no home directory to start the agent in")?
-                .to_string_lossy()
-                .into_owned(),
-        };
-        let cwd = cwd.as_str();
-
-        let connection_id = uuid::Uuid::new_v4().to_string();
-        let (client, initialize) = AcpClient::spawn(
-            connection_id.clone(),
-            &agent,
-            Some(cwd),
-            bot_id,
-            policy,
-            self.sink.clone(),
-        )
-        .await?;
-        self.connections.insert(connection_id.clone(), client.clone());
-
-        if let Some(bot) = &bot {
-            crate::bots::select_provider(&client, bot).await;
-        }
-        let opened = match &bot {
-            Some(bot) => {
-                crate::bots::open_with_signed_in_route(&client, bot, &initialize, || {
-                    client.new_session(cwd)
-                })
-                .await
-            }
-            None => client.new_session(cwd).await,
-        };
+impl AcpStartResult {
+    /// Shape the outcome of opening the first session on a fresh connection.
+    pub fn new(connection_id: String, initialize: Value, opened: Result<Value, String>) -> Self {
         let (session, session_error) = match opened {
             Ok(session) => (Some(session), None),
             Err(e) => (None, Some(e)),
@@ -135,17 +38,114 @@ impl AcpState {
             .and_then(|s| s.get("sessionId"))
             .and_then(Value::as_str)
             .map(str::to_string);
-        if let (Some(bot), Some(session_id)) = (&bot, &session_id) {
-            crate::bots::apply_settings(&client, session_id, bot).await;
-        }
+        Self { connection_id, session_id, initialize, session, session_error }
+    }
+}
 
-        Ok(AcpStartResult {
-            connection_id,
-            session_id,
-            initialize,
-            session,
-            session_error,
-        })
+/// What a connection started for a bot needs from `codexia-bots`: how to
+/// launch it, and what to apply to each session it opens. Installed once with
+/// [`AcpState::set_bot_hooks`]; without it, starting a bot fails.
+// `async_trait` boxes each future, which clippy 1.99 flags as `double_must_use`.
+#[allow(clippy::double_must_use)]
+#[async_trait]
+pub trait BotHooks: Send + Sync {
+    /// Start a connection for `bot_id` and open its first session in `cwd`
+    /// (the bot's own folder when empty).
+    async fn start(&self, acp: &AcpState, bot_id: &str, cwd: &str) -> Result<AcpStartResult, String>;
+
+    /// A session was just opened or resumed on a bot's connection.
+    async fn session_opened(&self, client: &AcpClient, session_id: &str);
+
+    /// The folder a bot works in when no project is given.
+    fn work_dir(&self, bot_id: &str) -> Result<String, String>;
+}
+
+#[derive(Clone)]
+pub struct AcpState {
+    connections: Arc<DashMap<String, Arc<AcpClient>>>,
+    sink: Arc<dyn EventSink>,
+    store: Arc<dyn SessionStore>,
+    bot_hooks: Arc<OnceLock<Arc<dyn BotHooks>>>,
+}
+
+impl AcpState {
+    pub fn new(sink: Arc<dyn EventSink>, store: Arc<dyn SessionStore>) -> Self {
+        Self {
+            connections: Arc::new(DashMap::new()),
+            sink,
+            store,
+            bot_hooks: Arc::new(OnceLock::new()),
+        }
+    }
+
+    /// Install what bots need; the first installation wins.
+    pub fn set_bot_hooks(&self, hooks: Arc<dyn BotHooks>) {
+        let _ = self.bot_hooks.set(hooks);
+    }
+
+    fn bot_hooks(&self) -> Result<&Arc<dyn BotHooks>, String> {
+        self.bot_hooks.get().ok_or_else(|| "bots are not set up".to_string())
+    }
+
+    pub fn sink(&self) -> Arc<dyn EventSink> {
+        self.sink.clone()
+    }
+
+    /// Every running connection.
+    pub fn connections(&self) -> impl Iterator<Item = Arc<AcpClient>> + '_ {
+        self.connections.iter().map(|c| c.value().clone())
+    }
+
+    /// Spawn `agent` in `cwd`, run the handshake and keep the connection
+    /// under `connection_id`. No session is opened yet.
+    pub async fn connect(
+        &self,
+        connection_id: String,
+        agent: &AcpAgentDef,
+        cwd: &str,
+        bot_id: Option<String>,
+        policy: ConnectionPolicy,
+    ) -> Result<(Arc<AcpClient>, Value), String> {
+        let (client, initialize) = AcpClient::spawn(
+            connection_id.clone(),
+            agent,
+            Some(cwd),
+            bot_id,
+            policy,
+            self.sink.clone(),
+            self.store.clone(),
+        )
+        .await?;
+        self.connections.insert(connection_id, client.clone());
+        Ok((client, initialize))
+    }
+
+    /// Spawn `agent_id` (a preset id, or a custom definition) and open a session in `cwd`.
+    /// A `bot_id` hands the launch to the installed [`BotHooks`], so what the
+    /// Bot tab runs and what a routine runs cannot drift apart.
+    pub async fn start(
+        &self,
+        agent_id: &str,
+        cwd: &str,
+        custom: Option<AcpAgentDef>,
+        bot_id: Option<String>,
+    ) -> Result<AcpStartResult, String> {
+        if let Some(bot_id) = bot_id {
+            return self.bot_hooks()?.start(self, &bot_id, cwd).await;
+        }
+        let agent = match custom {
+            Some(agent) => agent,
+            None => find_preset(agent_id).ok_or_else(|| format!("unknown ACP agent: {agent_id}"))?,
+        };
+        // An empty `cwd` makes the spawn fail with ENOENT.
+        let cwd = if cwd.is_empty() { home_dir("start the agent in")? } else { cwd.to_string() };
+
+        let connection_id = uuid::Uuid::new_v4().to_string();
+        let (client, initialize) = self
+            .connect(connection_id.clone(), &agent, &cwd, None, ConnectionPolicy::default())
+            .await?;
+        let opened = client.new_session(&cwd).await;
+        Ok(AcpStartResult::new(connection_id, initialize, opened))
     }
 
     fn get(&self, connection_id: &str) -> Result<Arc<AcpClient>, String> {
@@ -207,10 +207,22 @@ impl AcpState {
         client.authenticate_with(method_id, remember, api_key).await
     }
 
+    /// The folder a session opens in: `cwd`, or a bot's own folder when the
+    /// bot has no project, or the home folder; the same fallback [`AcpState::start`] uses.
+    fn session_cwd(&self, client: &AcpClient, cwd: &str) -> Result<String, String> {
+        if !cwd.is_empty() {
+            return Ok(cwd.to_string());
+        }
+        match client.bot_id.as_deref() {
+            Some(bot_id) => self.bot_hooks()?.work_dir(bot_id),
+            None => home_dir("open the session in"),
+        }
+    }
+
     /// Open a session on a connection that had to authenticate first.
     pub async fn new_session(&self, connection_id: &str, cwd: &str) -> Result<Value, String> {
         let client = self.get(connection_id)?;
-        let cwd = session_cwd(&client, cwd)?;
+        let cwd = self.session_cwd(&client, cwd)?;
         let session = client.new_session(&cwd).await?;
         if let Some(session_id) = session.get("sessionId").and_then(Value::as_str) {
             self.apply_bot_settings(&client, session_id).await;
@@ -221,11 +233,11 @@ impl AcpState {
     /// A bot's settings belong on every session its process opens or resumes,
     /// not only the first one.
     async fn apply_bot_settings(&self, client: &AcpClient, session_id: &str) {
-        let Some(bot_id) = client.bot_id.as_deref() else { return };
-        match codexia_db::bots::get_bot(bot_id) {
-            Ok(Some(bot)) => crate::bots::apply_settings(client, session_id, &bot).await,
-            Ok(None) => {}
-            Err(e) => log::warn!("acp: could not read bot {bot_id}: {e}"),
+        if client.bot_id.is_none() {
+            return;
+        }
+        if let Ok(hooks) = self.bot_hooks() {
+            hooks.session_opened(client, session_id).await;
         }
     }
 
@@ -294,23 +306,9 @@ impl AcpState {
     }
 }
 
-/// The folder a session opens in: `cwd`, or a bot's own folder when the bot
-/// has no project, or the home folder; the same fallback [`AcpState::start`] uses.
-fn session_cwd(client: &AcpClient, cwd: &str) -> Result<String, String> {
-    if !cwd.is_empty() {
-        return Ok(cwd.to_string());
-    }
-    let bot = client
-        .bot_id
-        .as_deref()
-        .map(codexia_db::bots::get_bot)
-        .transpose()?
-        .flatten();
-    match bot {
-        Some(bot) => crate::bots::work_dir(&bot),
-        None => Ok(dirs::home_dir()
-            .ok_or("no home directory to open the session in")?
-            .to_string_lossy()
-            .into_owned()),
-    }
+fn home_dir(purpose: &str) -> Result<String, String> {
+    Ok(dirs::home_dir()
+        .ok_or_else(|| format!("no home directory to {purpose}"))?
+        .to_string_lossy()
+        .into_owned())
 }

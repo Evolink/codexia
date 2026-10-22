@@ -1,5 +1,6 @@
 use axum::{Json, extract::State as AxumState, http::StatusCode};
-use codexia_acp::{AcpAgentDef, AcpSessionRecord, AcpStartResult};
+use codexia_acp::{AcpAgentDef, AcpStartResult};
+use codexia_db::acp_sessions::AcpSessionRecord;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -218,7 +219,7 @@ pub(crate) async fn api_acp_load_session(
 pub(crate) async fn api_acp_list_sessions(
     Json(params): Json<AcpListSessionsParams>,
 ) -> Result<Json<Vec<AcpSessionRecord>>, ErrorResponse> {
-    codexia_acp::list_sessions(params.cwd.as_deref(), params.limit.unwrap_or(100))
+    codexia_db::acp_sessions::list_sessions(params.cwd.as_deref(), params.limit.unwrap_or(100))
         .map(Json)
         .map_err(err)
 }
@@ -226,7 +227,7 @@ pub(crate) async fn api_acp_list_sessions(
 pub(crate) async fn api_acp_get_session(
     Json(params): Json<AcpSessionParams>,
 ) -> Result<Json<Vec<Value>>, ErrorResponse> {
-    codexia_acp::get_updates(&params.session_id)
+    codexia_db::acp_sessions::get_updates(&params.session_id)
         .map(Json)
         .map_err(err)
 }
@@ -234,7 +235,7 @@ pub(crate) async fn api_acp_get_session(
 pub(crate) async fn api_acp_delete_session(
     Json(params): Json<AcpSessionParams>,
 ) -> Result<StatusCode, ErrorResponse> {
-    codexia_acp::delete_session(&params.session_id).map_err(err)?;
+    codexia_db::acp_sessions::delete_session(&params.session_id).map_err(err)?;
     Ok(StatusCode::OK)
 }
 
