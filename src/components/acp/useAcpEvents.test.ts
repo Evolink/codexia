@@ -46,3 +46,23 @@ it('follows another process continuing the open session, but not its replay', ()
   emit({ connectionId: 'c1', kind: 'update', sessionId: 's1', update });
   expect(apply).toHaveBeenCalledTimes(2);
 });
+
+// The pane renders an opened session from storage, so a `session/load` replay
+// on its own connection must not add every turn a second time.
+it('drops replayed transcript events but keeps replayed session state', () => {
+  renderHook(() => useAcpEvents('c1'));
+  const chunk = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hi' } };
+  const mode = { sessionUpdate: 'current_mode_update', currentModeId: 'plan' };
+
+  emit({ connectionId: 'c1', kind: 'update', sessionId: 's1', replay: true, update: chunk });
+  emit({ connectionId: 'c1', kind: 'update', sessionId: 's1', replay: true, update: mode });
+  expect(apply).toHaveBeenCalledTimes(1);
+  expect(apply).toHaveBeenCalledWith(mode);
+});
+
+it('ignores an agent echoing the user turn', () => {
+  renderHook(() => useAcpEvents('c1'));
+  const echo = { sessionUpdate: 'user_message_chunk', content: { type: 'text', text: 'hi' } };
+  emit({ connectionId: 'c1', kind: 'update', sessionId: 's1', update: echo });
+  expect(apply).not.toHaveBeenCalled();
+});

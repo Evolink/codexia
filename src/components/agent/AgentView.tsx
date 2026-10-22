@@ -53,6 +53,7 @@ export default function AgentView() {
     connectionId: acpConnectionId,
     sessionId: acpSessionId,
     entries: acpEntries,
+    connecting: acpConnecting,
   } = useAcpStore();
 
   // Subscribed here, not in the transcript: an ACP session with no entries
@@ -69,8 +70,10 @@ export default function AgentView() {
   // No active thread/session: show the empty state with the composer at the bottom
   // A connected ACP session with nothing said yet is still an empty chat; one
   // without a session id may be waiting on auth, which the transcript shows.
+  // One still opening keeps the chat layout: flipping to the empty one and
+  // back flashes the agent picker and remounts the composer, losing focus.
   const noActiveSession = acpActive
-    ? !acpConnectionId || (Boolean(acpSessionId) && acpEntries.length === 0)
+    ? !acpConnectionId || (Boolean(acpSessionId) && acpEntries.length === 0 && !acpConnecting)
     : selectedAgent === 'codex'
       ? !currentThreadId
       : !activeSessionId;

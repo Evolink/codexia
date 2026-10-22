@@ -8,6 +8,7 @@ import { useWorkspaceStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
 import { AcpPermissionCard } from './AcpPermissionCard';
 import { AcpTranscript } from './AcpTranscript';
+import { restoreAcpCommands } from './restoreCommands';
 import { acpUserTurns, buildAcpTranscript } from './transcript';
 
 export default function AcpSession() {
@@ -30,7 +31,9 @@ export default function AcpSession() {
     if (!connectionId || !cwd) return;
     try {
       await acpAuthenticate(connectionId, methodId);
-      applySession(await acpNewSession(connectionId, cwd));
+      const session = await acpNewSession(connectionId, cwd);
+      applySession(session);
+      void restoreAcpCommands(session?.sessionId ?? null);
     } catch (e) {
       addEntry({ id: `auth-${Date.now()}`, role: 'error', text: String(e) });
     }

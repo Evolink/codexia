@@ -14,6 +14,12 @@ import { AcpConnectStatus, AcpImageStrip, AcpInstallBanner } from './AcpComposer
 import { AcpSessionControls } from './AcpSessionControls';
 import { AcpSlashCommandPopover } from './AcpSlashCommandPopover';
 import { imagesAsDataUrls } from './attachments';
+import {
+  ACP_INPUT_FOCUS_EVENT,
+  focusAcpComposer,
+  focusRequestPending,
+  settleFocusRequest,
+} from './focusComposer';
 import { useAcpConnection } from './useAcpConnection';
 
 export function AcpComposer() {
@@ -26,6 +32,13 @@ export function AcpComposer() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // Held in state so the popovers re-render once the wrapper mounts.
   const [wrapperEl, setWrapperEl] = useState<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const focus = () => textareaRef.current?.focus();
+    if (focusRequestPending()) focus();
+    window.addEventListener(ACP_INPUT_FOCUS_EVENT, focus);
+    return () => window.removeEventListener(ACP_INPUT_FOCUS_EVENT, focus);
+  }, []);
 
   // Grow with the text, up to the wrapper's max height.
   // biome-ignore lint/correctness/useExhaustiveDependencies: text is the trigger — measure after the textarea re-renders with it
@@ -82,14 +95,19 @@ export function AcpComposer() {
     setImages([]);
     const shown =
       trimmed || `${pendingImages.length} image${pendingImages.length === 1 ? '' : 's'}`;
+    // The first turn swaps the empty layout for the chat one, which mounts a
+    // new composer; keep the caret in it.
+    focusAcpComposer();
     addEntry({ id: `u-${Date.now()}`, role: 'user', text: shown });
     setRunning(true);
     try {
       await acpPrompt(live.connectionId, live.sessionId, trimmed, pendingImages);
     } catch (e) {
-      addEntry({ id: `e-${Date.now()}`, role: 'error', text: String(e) });
+      // The pane may have switched to another session meanwhile.
+      if (useAcpStore.getState().sessionId === live.sessionId)
+        addEntry({ id: `e-${Date.now()}`, role: 'error', text: String(e) });
     } finally {
-      setRunning(false);
+      if (useAcpStore.getState().sessionId === live.sessionId) setRunning(false);
     }
   };
 
@@ -120,6 +138,7 @@ export function AcpComposer() {
             onChange={(e) => setText(e.target.value)}
             onPaste={pasteImages}
             onKeyDown={(e) => {
+              settleFocusRequest();
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 send();

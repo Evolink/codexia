@@ -102,6 +102,11 @@ pub struct UnattendedApprovals {
 /// `_meta` key on a stored user turn that came from a routine or another bot.
 pub const TRIGGER_META: &str = "codexia.dev/trigger";
 
+/// Whether a `session/update` is the agent echoing the user's turn.
+fn is_user_echo(update: &Value) -> bool {
+    update.get("sessionUpdate").and_then(Value::as_str) == Some("user_message_chunk")
+}
+
 /// keke's `_meta` name for the tool a permission request is about.
 const TOOL_META: &str = "keke.dev/tool";
 
@@ -767,7 +772,19 @@ impl AcpClient {
         if self.replaying.contains_key(session_id) {
             return;
         }
-        if let Err(e) = codexia_db::acp_sessions::append_update(session_id, &update.to_string()) {
+        let touch = matches!(
+            update.get("sessionUpdate").and_then(Value::as_str),
+            Some(
+                "user_message_chunk"
+                    | "agent_message_chunk"
+                    | "agent_thought_chunk"
+                    | "tool_call"
+                    | "tool_call_update"
+            )
+        );
+        if let Err(e) =
+            codexia_db::acp_sessions::append_update(session_id, &update.to_string(), touch)
+        {
             log::warn!("acp: failed to persist session update: {e}");
         }
     }
@@ -884,7 +901,11 @@ impl AcpClient {
                 if method == "session/update" {
                     let session_id = params.get("sessionId").and_then(Value::as_str);
                     if let (Some(session_id), Some(update)) = (session_id, params.get("update")) {
-                        self.persist(session_id, update);
+                        // `prompt` records the user's turn itself; an agent that
+                        // echoes it back (Grok does) would store it twice.
+                        if !is_user_echo(update) {
+                            self.persist(session_id, update);
+                        }
                     }
                     // A `session/load` replay repeats what is already stored;
                     // a client following the live transcript must skip it.
@@ -1047,6 +1068,14 @@ fn image_block(path: &str) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_user_turn_counts_as_an_echo() {
+        let echo = json!({ "sessionUpdate": "user_message_chunk", "content": { "type": "text", "text": "hi" } });
+        let reply = json!({ "sessionUpdate": "agent_message_chunk", "content": { "type": "text", "text": "hi" } });
+        assert!(is_user_echo(&echo));
+        assert!(!is_user_echo(&reply));
+    }
 
     struct QuietSink;
     impl EventSink for QuietSink {

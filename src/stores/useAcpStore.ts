@@ -129,7 +129,10 @@ interface AcpStore {
   }) => void;
   setSessionId: (id: string | null) => void;
   setResumeSessionId: (id: string | null) => void;
-  /** Apply the `session/new` result: session id plus the available controls. */
+  /**
+   * Apply the `session/new` result: session id plus the available controls.
+   * Clears the slash commands, which arrive per session as an update.
+   */
   applySession: (session: AcpSessionResult | null) => void;
   setCurrentMode: (modeId: string) => void;
   setCurrentModel: (modelId: string) => void;
@@ -239,6 +242,9 @@ export const createAcpStore = () =>
         authMethods,
         canLoadSession: canLoadSession ?? false,
         canAttachImages: canAttachImages ?? false,
+        // Commands belong to the session that advertised them, never carried
+        // over to another agent's.
+        commands: [],
         connecting: false,
       }),
     setSessionId: (sessionId) => set({ sessionId }),
@@ -250,6 +256,7 @@ export const createAcpStore = () =>
         modes: session?.modes ?? null,
         models: session?.models ?? null,
         configOptions: session?.configOptions ?? [],
+        commands: [],
         reasoningEffort:
           session?.models?.availableModels
             .find((m) => m.modelId === session.models?.currentModelId)

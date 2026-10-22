@@ -21,6 +21,14 @@ type AcpEventPayload = {
   line?: string;
 };
 
+const TRANSCRIPT_UPDATES = new Set([
+  'user_message_chunk',
+  'agent_message_chunk',
+  'agent_thought_chunk',
+  'tool_call',
+  'tool_call_update',
+]);
+
 /**
  * Bridges backend `acp-message` events (Tauri event / SSE) into the ACP store.
  * Mirrors the CC listener: Tauri events on desktop, `/api/events` SSE elsewhere.
@@ -82,6 +90,13 @@ export function useAcpEvents(connectionId: string | null) {
       }
 
       if (payload.kind !== 'update' || !payload.update) return;
+      const kind = payload.update.sessionUpdate as string;
+      // `openAcpSession` renders the transcript from storage; a replayed copy
+      // would show every turn twice. Session state in the replay still applies.
+      if (payload.replay && TRANSCRIPT_UPDATES.has(kind)) return;
+      // The composer shows the user's turn as it is sent; an agent echoing it
+      // back (Grok does) would show it twice.
+      if (kind === 'user_message_chunk') return;
 
       applyAcpUpdate(payload.update as Record<string, any>);
     };
