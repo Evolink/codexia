@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AcpSessionRecord } from '@/services/apiAdapt/acp';
+import { useLayoutStore } from '@/stores';
 import { useAcpStore } from '@/stores/useAcpStore';
+import { useBotUiStore } from '@/stores/useBotUiStore';
 import { openAcpSession } from './openSession';
 
 const api = vi.hoisted(() => ({
@@ -97,5 +99,18 @@ describe('openAcpSession', () => {
     expect(s.sessionId).toBe('fresh');
     expect(s.entries.map((e) => e.role)).toEqual(['user', 'error']);
     expect(s.connecting).toBe(false);
+  });
+
+  // Bots and chats share one pane: a chat opened from the sidebar must not be
+  // rendered inside the bot that was selected, nor take that bot's late replay.
+  it('leaves the selected bot and shows the chat view', async () => {
+    api.acpLoadSession.mockResolvedValue({ sessionId: 'B' });
+    useBotUiStore.getState().setSelectedBotId('bot-1');
+    useLayoutStore.getState().setView('bot');
+
+    await openAcpSession(record('B'));
+
+    expect(useBotUiStore.getState().selectedBotId).toBeNull();
+    expect(useLayoutStore.getState().view).toBe('agent');
   });
 });
